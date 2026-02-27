@@ -248,18 +248,16 @@ def main():
     list_of_robust_variances_test_against_test = []
 
     for chr, ellipsoid_test in ellipsoids_for_chromosomes_test.iteritems():
-        if chr in ("chr7", "chr12", "chr9"):
-            list_of_amplicons_to_test = clean_chromosomes_amplicons[chr]
-            for amplicon, element in ellipsoid_test.iteritems():
-                if amplicon in list_of_amplicons_to_test:
-                    list_of_robust_variances_test_against_test.append(element[1])
+        list_of_amplicons_to_test = clean_chromosomes_amplicons[chr]
+        for amplicon, element in ellipsoid_test.iteritems():
+            if amplicon in list_of_amplicons_to_test:
+                list_of_robust_variances_test_against_test.append(element[1])
 
     for chr, ellipsoid in ellipsoids_for_chromosomes.iteritems():
-        if chr in ("chr7", "chr12", "chr9"):
-            list_of_amplicons_to_test = clean_chromosomes_amplicons[chr]
-            for amplicon, element in ellipsoid.iteritems():
-                if amplicon in list_of_amplicons_to_test:
-                    list_of_robust_variances_control_against_control.append(element[1])
+        list_of_amplicons_to_test = clean_chromosomes_amplicons[chr]
+        for amplicon, element in ellipsoid.iteritems():
+            if amplicon in list_of_amplicons_to_test:
+                list_of_robust_variances_control_against_control.append(element[1])
             num_of_accepted = int(len(list_of_amplicons_to_test) * percent)
             qChisq = quantiles99[(num_of_accepted)]
             normal_or_not, avtc_residuals_for_amplicons = diagnose_chromosome_ellipsoid(samples_to_test, ellipsoid, list_of_amplicons_to_test, qChisq, num_of_accepted)
