@@ -120,7 +120,6 @@ def main():
     control_dataset = id_of_run
     if args.control_dataset:
         control_dataset = args.control_dataset
-    list_of_chromosomes = ("chr7", "chr12", "chr9")
 
     logger.info((" ").join(["Task with id", id_of_run, "started"]))
     quant_dict = {}
