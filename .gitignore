@@ -1,1 +1,6 @@
 .ipynb_checkpoints/
+output_with_SAMs/
+parseq/
+*.log
+*.pyc
+tmp_*
