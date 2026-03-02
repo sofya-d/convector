@@ -166,18 +166,18 @@ def additional_info(panel_of_amplicons, add_file):
     return panel_of_amplicons
 
 
-def bam_to_sam(directory, outputdir):
+def bam_to_sam(directory, sam_dirpath):
     """
     :param directory: path to directory with .bam files
-    :param outputdir: output directory for .sam files
+    :param sam_dirpath: output directory for .sam files
     :return:
     """
-    if not (os.path.exists(outputdir)):
-        logger.warn("Making directory... " + outputdir)
-        os.makedirs(outputdir)
+    if not (os.path.exists(sam_dirpath)):
+        logger.warn("Making directory... " + sam_dirpath)
+        os.makedirs(sam_dirpath)
     else:
-        for the_file in os.listdir(outputdir):
-            file_path = os.path.join(outputdir, the_file)
+        for the_file in os.listdir(sam_dirpath):
+            file_path = os.path.join(sam_dirpath, the_file)
             try:
                 if os.path.isfile(file_path):
                     os.unlink(file_path)
@@ -199,7 +199,7 @@ def bam_to_sam(directory, outputdir):
             out_file_name = filename[:-4] + ".sam"
             tmp_string = ("samtools view -h " + os.path.join(directory,
                           filename) + " > " +
-                          os.path.join(outputdir, out_file_name))
+                          os.path.join(sam_dirpath, out_file_name))
             os.system(tmp_string)
             counter_of_progress += 1
             logger.info(" ".join(["Progress in converting to SAM:", str(counter_of_progress),
@@ -477,9 +477,9 @@ def remove_homopolymers(string, max_homopolymer_length):
             homo_len = 1
     return result_string
 
-def calculate_corrected_reads(outputdir, panel_of_amplicons, min_length, mq,
+def calculate_corrected_reads(outputdir, sam_dirpath, panel_of_amplicons, min_length, mq,
                               percentage_mode_on, clip_cutoff, cutoff, num_of_reads,
-                              res_file):
+                              result_file):
     """
     We calculate the coverages of each amplicon with our metrics of quality.
     Percentage mode / BP mode - different metrics of intersection.
@@ -504,11 +504,11 @@ def calculate_corrected_reads(outputdir, panel_of_amplicons, min_length, mq,
             string_to_output[ampl] += ampl.ID + "\t"
 
 
-    if not os.path.exists(outputdir):
-        os.makedirs(outputdir)
+    if not os.path.exists(sam_dirpath):
+        os.makedirs(sam_dirpath)
 
 
-    for filename in os.listdir(outputdir):
+    for filename in os.listdir(sam_dirpath):
         logger.info(filename)
         max_length = 0
         starts_end_ends = defaultdict(list)
@@ -521,7 +521,7 @@ def calculate_corrected_reads(outputdir, panel_of_amplicons, min_length, mq,
 
         reads_after_final_processing = defaultdict(list)
 
-        with open(os.path.join(outputdir, filename)) as sam_to_correct:
+        with open(os.path.join(sam_dirpath, filename)) as sam_to_correct:
             alphabet = ("A","C","G","T","-","I")
             nucleotides_alphabet = ("A","C","G","T")
             canonical_strings_for_each_amplicon = {}
@@ -646,13 +646,8 @@ def calculate_corrected_reads(outputdir, panel_of_amplicons, min_length, mq,
     for key in dict_to_know_what_amplicons_are_more_chimeric:
         logger.info(" ".join(["AMPL", str(key.ID), str(key.chromosome), "HAS THIS AMOUNT OF CHIMERAS II TYPE", str(dict_to_know_what_amplicons_are_more_chimeric[key])]))
 
-    if not (os.path.exists("result")):
-            logger.warn("Making directory result")
-            os.makedirs("result")
-    newpath = os.path.join(os.path.abspath("result"), res_file)
-    if "/" in res_file:
-        newpath = os.path.abspath(res_file)
-    with open(newpath, "wb") as output_file:
+    result_filepath = outputdir + '/' + result_file
+    with open(result_filepath, "wb") as output_file:
             output_file.write(top_string + "\n")
             for key in panel_of_amplicons.iterkeys():
                 for amplicon in panel_of_amplicons[key]:
@@ -710,7 +705,8 @@ Needs input directory with bam files and file with coordinates of amplicons.""")
         additional_info(panel_of_amplicons, args.additional_file)
 
     if args.converter:
-        bam_to_sam(directory, outputdir)
+        sam_dirpath = outputdir + '/sam'
+        bam_to_sam(directory, sam_dirpath)
 
     # two modes - percentage (coverage defined by the % of amplicon
     # covered with the read or
@@ -718,12 +714,12 @@ Needs input directory with bam files and file with coordinates of amplicons.""")
 
     percentage_mode_on = args.mode
 
-    res_file = args.result_file
+    result_file = args.result_file
 
-    calculate_corrected_reads(outputdir, panel_of_amplicons,
+    calculate_corrected_reads(outputdir, sam_dirpath, panel_of_amplicons,
                               len_threshold, mq, percentage_mode_on,
                               clip_cutoff, cutoff, num_of_reads,
-                              res_file)
+                              result_file)
 
 
 if __name__ == "__main__":
