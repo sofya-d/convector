@@ -12,9 +12,9 @@ loginipath = ('logging_config.ini')
 fileConfig(loginipath, defaults={'logfilename': 'pipeline.log'})
 logger = logging.getLogger('CONVector_logger')
 
-def get_coverages(bam_folder, bed_file, id_of_run):
+def get_coverages(bam_folder, bed_file, id_of_run, output_folder):
     """Launch chimeric_solver and counts coverages. Save the output .xls file to the directory ./result by default"""
-    string_to_cmd = ("").join(["python2 chimeric_solver.py -d ", bam_folder, " -b ", bed_file, " -r ", id_of_run, ".xls", " --conv"])
+    string_to_cmd = ("").join(["python2 chimeric_solver.py --dir ", bam_folder, " --bed ", bed_file, " --resFile ", id_of_run, ".xls", " --conv --out ", output_folder])
     os.system(string_to_cmd)
 
 def get_quantiles():
@@ -143,7 +143,7 @@ def main():
         f.close()
 
     if args.directory:
-        get_coverages(bam_folder, bed_file, id_of_run)
+        get_coverages(bam_folder, bed_file, id_of_run, output_folder)
     output_file_name = id_of_run
     if not id_of_run == control_dataset:
         output_file_name = id_of_run + "_" + control_dataset
