@@ -239,7 +239,7 @@ counter_glob = 0
 def extract_info_of_read(tmp_list, clip_cutoff, canonical_strings_for_each_amplicon, score_mq):
     """
     This function takes splitted SAM row and returns tuples of values:
-    (CHR, START, END, %GC, [CLIPPED_START_PART, CLIPPED_END_PART])
+    (CHR, START, END, %GC, length, [CLIPPED_START_PART, CLIPPED_END_PART])
     """
     flag = tmp_list[1]
     chromosome = tmp_list[2]
@@ -299,6 +299,10 @@ def extract_info_of_read(tmp_list, clip_cutoff, canonical_strings_for_each_ampli
     result_tuple = (chromosome, start_pos, end_pos, GC, true_length, clipped_parts)
 
     # canonical string, length of intersection, number of Ms, abs(start_read - start_ampl) + abs(end_read - end_ampl)
+    
+    # This part executes if a read is not clipped (does not contain "S" and "H" CIGAR operations).
+    # This part updates alignment symbols counts in canonical_strings_for_each_amplicon dictionary.
+    # These counts are later used to calculate consensus amplicon sequence.
     alphabet = ("A","C","G","T","-","I")
     if chromosome in canonical_strings_for_each_amplicon and number_of_clipping_letters == 0 and int(tmp_list[4]) >= 60:
         for ampl in canonical_strings_for_each_amplicon[chromosome]:
@@ -498,7 +502,7 @@ def calculate_corrected_reads(outputdir, sam_dirpath, panel_of_amplicons, min_le
             string_to_output[ampl] = "N/A\t"
             string_to_output[ampl] += ampl.ID + "\t"
 
-    # Iterate
+    # Iterate through file names.
     alphabet = ("A","C","G","T","-","I")
     nucleotides_alphabet = ("A","C","G","T")
     dict_to_know_what_amplicons_are_more_chimeric = defaultdict(int)
@@ -525,7 +529,8 @@ def calculate_corrected_reads(outputdir, sam_dirpath, panel_of_amplicons, min_le
                 for letter in alphabet:
                     canonical_strings_for_each_amplicon[key][ampl][letter] = [0 for i in xrange(len_of_consensus)]
         
-        # Iterate through SAM rows and process suitable alignments with extract_info_of_read(), add the processed read to reads_after_final_processing
+        # Iterate through SAM rows and process suitable alignments with extract_info_of_read(), add the processed read to reads_after_final_processing.
+        # extract_info_of_read() updates canonical_strings_for_each_amplicon if a read is not soft- or hard-clipped (see comments in extract_info_of_read() for more details).
         with open(os.path.join(sam_dirpath, filename)) as sam_to_correct:
             for tmp_line in sam_to_correct:
                 if not tmp_line.startswith("@"):
@@ -535,7 +540,9 @@ def calculate_corrected_reads(outputdir, sam_dirpath, panel_of_amplicons, min_le
                         processed_read = extract_info_of_read(tmp_list, int(clip_cutoff), canonical_strings_for_each_amplicon, score_of_mq)
                         if len(processed_read) > 1:
                             reads_after_final_processing[processed_read[0]].append(processed_read)
-                            
+
+        # Compute consensus amplicon sequence using alignment symbols counts in canonical_strings_for_each_amplicon dictionary.
+        # Add consensus amplicon sequence to canonical_strings_for_each_amplicon_with_primers dictionary.
         for key in panel_of_amplicons:
             for ampl in panel_of_amplicons[key]:
                 heterozigouthy_state = False
@@ -563,7 +570,10 @@ def calculate_corrected_reads(outputdir, sam_dirpath, panel_of_amplicons, min_le
                                 max_amount = canonical_strings_for_each_amplicon[key][ampl][letter][i]
                         canonical_read_with_primers += canonical_letter
                 canonical_strings_for_each_amplicon_with_primers[key][ampl] = canonical_read_with_primers
-            
+
+        # Select reads whose end(s) is(are) soft- or hard-clipped from reads_after_final_processing (see extract_info_of_read() for more details).
+        # Remove a part of a homopolymer that exceeds homopolymer length threshold (4).
+        # Append the reads to a chimeras_list.
         chimeras_list = []
         for chr in reads_after_final_processing:
             for read in reads_after_final_processing[chr]:
