@@ -541,6 +541,14 @@ def calculate_corrected_reads(outputdir, sam_dirpath, panel_of_amplicons, min_le
                         if len(processed_read) > 1:
                             reads_after_final_processing[processed_read[0]].append(processed_read)
 
+        # Raise a warning if number of reads in SAM is below a threshold and proceed to the next SAM.
+        if total_reads_in_file < num_of_reads:
+            logger.warn('\n'.join(["WARNING",
+                             "In file " + str(filename), "only " + str(total_reads_in_file) + " reads! And "
+                             + str(num_of_reads) + " is minimum required. You can change" ,
+                             "this option with the key -n.", "Stop analysis of this file.", ""]))
+            continue
+
         # Compute consensus amplicon sequence using alignment symbols counts in canonical_strings_for_each_amplicon dictionary.
         # Add consensus amplicon sequence to canonical_strings_for_each_amplicon_with_primers dictionary.
         for key in panel_of_amplicons:
@@ -581,14 +589,6 @@ def calculate_corrected_reads(outputdir, sam_dirpath, panel_of_amplicons, min_le
                     for elem in read[5]:
                         without_homopolymers = remove_homopolymers(elem, 4)
                         chimeras_list.append(without_homopolymers)
-        
-        
-        if total_reads_in_file < num_of_reads:
-            logger.warn('\n'.join(["WARNING",
-                             "In file " + str(filename), "only " + str(total_reads_in_file) + " reads! And "
-                             + str(num_of_reads) + " is minimum required. You can change" ,
-                             "this option with the key -n.", "Stop analysis of this file.", ""]))
-            continue
 
         size_of_list = len(chimeras_list)
         for i in xrange(size_of_list):
