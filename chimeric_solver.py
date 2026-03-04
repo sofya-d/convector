@@ -364,10 +364,15 @@ def get_coverage(reads_after_final_processing, cutoff,
     :param percentage_mode_on: intersection in percents of in base pairs
     :return: calculated coverages of amplicons
     """
+    
+    # Calculate amplicons coverage and count number of type 1 chimeras.
     coverage_of_amplicons = defaultdict(int)
     total_num_of_chimeras_of_first_type = 0
     for key, item in reads_after_final_processing.iteritems():
         if key in panel_of_amplicons:
+
+            # Calculate intersection of read with amplicons.
+            # If the intersection is larger than an intersection threshold, add amplicons to list_of_potentially_intersected dict. and intersection to intersection dict..
             for read in item:
                 list_of_potentially_intersected = []
                 intersection = {}
@@ -378,11 +383,18 @@ def get_coverage(reads_after_final_processing, cutoff,
                    if (inter > cutoff):
                        list_of_potentially_intersected.append(amplicon)
                        intersection[amplicon] = inter
+                
+                # If read is intersected with only one amplicon, increment the amplicon coverage in coverage_of_amplicons.
                 if len(list_of_potentially_intersected) == 1:
                     amplicon = list_of_potentially_intersected[0]
                     coverage_of_amplicons[amplicon] += 1
+
+                # If read is intersected with 2 amplicons, increment coverage of an amplicon that has larger intersection with the read.
+                # See if_len_of_list_intersected_equal_two() for more details.
                 elif len(list_of_potentially_intersected) == 2:
                     if_len_of_list_intersected_equal_two(list_of_potentially_intersected, intersection, coverage_of_amplicons)
+
+                # If read is intersected with 3 amplicons:
                 elif len(list_of_potentially_intersected) == 3:
                             left_coord = float('Inf')
                             right_coord = 0
@@ -390,6 +402,8 @@ def get_coverage(reads_after_final_processing, cutoff,
                             left_ampl = None
                             left_and_right = {}
                             center_amplicon = None
+
+                            # Select left, center, and right amplicons.
                             for elem in list_of_potentially_intersected:
                                 if elem.start_pos < left_coord:
                                     left_coord = elem.start_pos
@@ -404,13 +418,20 @@ def get_coverage(reads_after_final_processing, cutoff,
                                     continue
                                 else:
                                     center_amplicon = elem
+
+                            # Calculate center amplicon intersection with left amplicon and center amplicon intersection with right amplicon.
                             left_interstection = center_amplicon.ampl_intersection(left_ampl)
                             right_interstection = center_amplicon.ampl_intersection(right_ampl)
 
+                            # Remove amplicons with smaller intersection with read
+                            # If "intersection of center and left amplicons + 30" is more than "intersection of left amplicon with read", remove left amplicon
                             if left_interstection + 30 > intersection[left_ampl]:
                                 list_of_potentially_intersected.remove(left_ampl)
+                            # If "intersection of center and right amplicons + 30" is more than "intersection of right amplicon with read", remove right amplicon
                             if right_interstection + 30 > intersection[right_ampl]:
                                 list_of_potentially_intersected.remove(right_ampl)
+                                
+                                # Choose what amplicon coverage to increment based on the number of amplicons left
                                 if len(list_of_potentially_intersected) == 1:
                                     coverage_of_amplicons[list_of_potentially_intersected[0]] += 1
                                 else:
@@ -579,7 +600,7 @@ def calculate_corrected_reads(outputdir, sam_dirpath, panel_of_amplicons, min_le
                         canonical_read_with_primers += canonical_letter
                 canonical_strings_for_each_amplicon_with_primers[key][ampl] = canonical_read_with_primers
 
-        # Select reads whose end(s) is(are) soft- or hard-clipped from reads_after_final_processing (see extract_info_of_read() for more details).
+        # Select reads that have more then clip_cutoff bases clipped on one or both read end(s) from reads_after_final_processing (see extract_info_of_read() for more details).
         # Remove a part of a homopolymer that exceeds homopolymer length threshold (4).
         # Append the reads to a chimeras_list.
         chimeras_list = []
@@ -589,7 +610,8 @@ def calculate_corrected_reads(outputdir, sam_dirpath, panel_of_amplicons, min_le
                     for elem in read[5]:
                         without_homopolymers = remove_homopolymers(elem, 4)
                         chimeras_list.append(without_homopolymers)
-
+        # Add reverse complement sequences of chimeras from chimeras_list to chimeras_list.
+        # Reverse complement sequences of chimeras are computed with rev_compl().
         size_of_list = len(chimeras_list)
         for i in xrange(size_of_list):
             chimera = chimeras_list[i]
