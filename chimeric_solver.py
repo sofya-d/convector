@@ -363,6 +363,8 @@ def get_coverage(reads_after_final_processing, cutoff,
     :param panel_of_amplicons: panel of amplicons from .bed file
     :param percentage_mode_on: intersection in percents of in base pairs
     :return: calculated coverages of amplicons
+    This function also calculates number of type I chimeras.
+    Read which are intersected by 3 and more amplicons are considered type I chimeras.
     """
     
     # Calculate amplicons coverage and count number of type 1 chimeras.
@@ -402,7 +404,7 @@ def get_coverage(reads_after_final_processing, cutoff,
                     left_ampl = None
                     left_and_right = {}
                     center_amplicon = None
-
+                    #
                     # Select left, center, and right amplicons.
                     for elem in list_of_potentially_intersected:
                         if elem.start_pos < left_coord:
@@ -418,11 +420,11 @@ def get_coverage(reads_after_final_processing, cutoff,
                             continue
                         else:
                             center_amplicon = elem
-
+                    #
                     # Calculate center amplicon intersection with left amplicon and center amplicon intersection with right amplicon.
                     left_interstection = center_amplicon.ampl_intersection(left_ampl)
                     right_interstection = center_amplicon.ampl_intersection(right_ampl)
-
+                    #
                     # Remove amplicons with smaller intersection with read
                     # If "intersection of center and left amplicons + 30" is more than "intersection of left amplicon with read", remove left amplicon
                     if left_interstection + 30 > intersection[left_ampl]:
@@ -430,31 +432,38 @@ def get_coverage(reads_after_final_processing, cutoff,
                     # If "intersection of center and right amplicons + 30" is more than "intersection of right amplicon with read", remove right amplicon
                     if right_interstection + 30 > intersection[right_ampl]:
                         list_of_potentially_intersected.remove(right_ampl)
-                        
-                        # Choose what amplicon coverage to increment based on the number of amplicons left
-                        if len(list_of_potentially_intersected) == 1:
-                            coverage_of_amplicons[list_of_potentially_intersected[0]] += 1
-                        else:
-                            if_len_of_list_intersected_equal_two(list_of_potentially_intersected, intersection, coverage_of_amplicons)
-                    if len(list_of_potentially_intersected) == 3:
+                    #   
+                    # Choose what amplicon coverage to increment based on the number of amplicons left
+                    if len(list_of_potentially_intersected) == 1:
+                        coverage_of_amplicons[list_of_potentially_intersected[0]] += 1
+                    elif len(list_of_potentially_intersected) == 2:
+                        if_len_of_list_intersected_equal_two(list_of_potentially_intersected, intersection, coverage_of_amplicons)
+                    else:
                         coverage_of_amplicons[left_ampl] += 1
                         coverage_of_amplicons[right_ampl] += 1
                         total_num_of_chimeras_of_first_type += 1
+
+                # If read is intersected with 4 amplicons:
                 elif len(list_of_potentially_intersected) == 4:
+                    # Calculate distances between read and each amplicon
                     distances = []
+                    read_start = read[1]
+                    read_end = read[2]
                     for i in xrange(len(list_of_potentially_intersected)):
-                         read_start = read[1]
-                         read_end = read[2]
                          ampl_start = list_of_potentially_intersected[i].start_pos
                          ampl_end = list_of_potentially_intersected[i].end_pos
                          distances.append(abs(read_start - ampl_start) + abs(ampl_end - read_end))
+                    # Select 1 amplicon with the shortest distance to read and increment its coverage
                     min_dist_amplicon = distances.index(min(distances))
                     coverage_of_amplicons[list_of_potentially_intersected[min_dist_amplicon]] += 1
                     total_num_of_chimeras_of_first_type += 1
+
+                # If read is intersected with 5 and more amplicons:
                 elif len(list_of_potentially_intersected) >= 5:
                     logger.warn(" ".join(["We can not decide the right mapping of read ", str(list_of_potentially_intersected)]))
                     logger.warn(read)
                     total_num_of_chimeras_of_first_type += 1
+    
     logger.info(" ".join(["TOTAL AMOUNT OF I TYPE CHIMERAS:", str(total_num_of_chimeras_of_first_type)]))
     return coverage_of_amplicons
 
