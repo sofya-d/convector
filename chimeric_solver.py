@@ -396,50 +396,50 @@ def get_coverage(reads_after_final_processing, cutoff,
 
                 # If read is intersected with 3 amplicons:
                 elif len(list_of_potentially_intersected) == 3:
-                            left_coord = float('Inf')
-                            right_coord = 0
-                            right_ampl = None
-                            left_ampl = None
-                            left_and_right = {}
-                            center_amplicon = None
+                    left_coord = float('Inf')
+                    right_coord = 0
+                    right_ampl = None
+                    left_ampl = None
+                    left_and_right = {}
+                    center_amplicon = None
 
-                            # Select left, center, and right amplicons.
-                            for elem in list_of_potentially_intersected:
-                                if elem.start_pos < left_coord:
-                                    left_coord = elem.start_pos
-                                    left_ampl = elem
-                                    left_and_right["left"] = elem
-                                if elem.end_pos > right_coord:
-                                    right_coord = elem.end_pos
-                                    right_ampl = elem
-                                    left_and_right["right"] = elem
-                            for elem in list_of_potentially_intersected:
-                                if elem == left_and_right["left"] or elem == left_and_right["right"]:
-                                    continue
-                                else:
-                                    center_amplicon = elem
+                    # Select left, center, and right amplicons.
+                    for elem in list_of_potentially_intersected:
+                        if elem.start_pos < left_coord:
+                            left_coord = elem.start_pos
+                            left_ampl = elem
+                            left_and_right["left"] = elem
+                        if elem.end_pos > right_coord:
+                            right_coord = elem.end_pos
+                            right_ampl = elem
+                            left_and_right["right"] = elem
+                    for elem in list_of_potentially_intersected:
+                        if elem == left_and_right["left"] or elem == left_and_right["right"]:
+                            continue
+                        else:
+                            center_amplicon = elem
 
-                            # Calculate center amplicon intersection with left amplicon and center amplicon intersection with right amplicon.
-                            left_interstection = center_amplicon.ampl_intersection(left_ampl)
-                            right_interstection = center_amplicon.ampl_intersection(right_ampl)
+                    # Calculate center amplicon intersection with left amplicon and center amplicon intersection with right amplicon.
+                    left_interstection = center_amplicon.ampl_intersection(left_ampl)
+                    right_interstection = center_amplicon.ampl_intersection(right_ampl)
 
-                            # Remove amplicons with smaller intersection with read
-                            # If "intersection of center and left amplicons + 30" is more than "intersection of left amplicon with read", remove left amplicon
-                            if left_interstection + 30 > intersection[left_ampl]:
-                                list_of_potentially_intersected.remove(left_ampl)
-                            # If "intersection of center and right amplicons + 30" is more than "intersection of right amplicon with read", remove right amplicon
-                            if right_interstection + 30 > intersection[right_ampl]:
-                                list_of_potentially_intersected.remove(right_ampl)
-                                
-                                # Choose what amplicon coverage to increment based on the number of amplicons left
-                                if len(list_of_potentially_intersected) == 1:
-                                    coverage_of_amplicons[list_of_potentially_intersected[0]] += 1
-                                else:
-                                    if_len_of_list_intersected_equal_two(list_of_potentially_intersected, intersection, coverage_of_amplicons)
-                            if len(list_of_potentially_intersected) == 3:
-                                coverage_of_amplicons[left_ampl] += 1
-                                coverage_of_amplicons[right_ampl] += 1
-                                total_num_of_chimeras_of_first_type += 1
+                    # Remove amplicons with smaller intersection with read
+                    # If "intersection of center and left amplicons + 30" is more than "intersection of left amplicon with read", remove left amplicon
+                    if left_interstection + 30 > intersection[left_ampl]:
+                        list_of_potentially_intersected.remove(left_ampl)
+                    # If "intersection of center and right amplicons + 30" is more than "intersection of right amplicon with read", remove right amplicon
+                    if right_interstection + 30 > intersection[right_ampl]:
+                        list_of_potentially_intersected.remove(right_ampl)
+                        
+                        # Choose what amplicon coverage to increment based on the number of amplicons left
+                        if len(list_of_potentially_intersected) == 1:
+                            coverage_of_amplicons[list_of_potentially_intersected[0]] += 1
+                        else:
+                            if_len_of_list_intersected_equal_two(list_of_potentially_intersected, intersection, coverage_of_amplicons)
+                    if len(list_of_potentially_intersected) == 3:
+                        coverage_of_amplicons[left_ampl] += 1
+                        coverage_of_amplicons[right_ampl] += 1
+                        total_num_of_chimeras_of_first_type += 1
                 elif len(list_of_potentially_intersected) == 4:
                     distances = []
                     for i in xrange(len(list_of_potentially_intersected)):
