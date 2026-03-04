@@ -66,19 +66,25 @@ class Amplicon:
         if (end_read <= start_ampl or start_read >= end_ampl):
             return 0
 
+        # Distance between read start and amplicon start; positive if "read start" < "amplicon start"
         first_diff = start_ampl - start_read
+        # Distance between read end and amplicon end; positive if "read end" < "amplicon end"
         second_diff = end_ampl - end_read
         common_part = 0 # relatively to amplicon
 
+        # A read starts to the left of an amplicon and ends to the left of an amplicon (right part of a read intersects left part of an amplicon)
         if first_diff >= 0 and second_diff >= 0:
             common_part = end_read - start_ampl
-
+        
+        # A read starts to the left of an amplicon and ends to the right of an amplicon (a read contains an amplicon)
         elif first_diff >= 0 and second_diff <= 0:
             common_part = end_ampl - start_ampl
-
+        
+        # A read starts to the right of an amplicon and ends to the left of an amplicon (an amplicon contains a read)
         elif first_diff <= 0 and second_diff >= 0:
             common_part = end_read - start_read
 
+        # A read starts to the right of an amplicon and ends to the right of an amplicon (left part of a read intersects right part of an amplicon)
         elif first_diff <= 0 and second_diff <= 0:
             common_part = end_ampl - start_read
 
@@ -232,8 +238,7 @@ counter_glob = 0
 
 def extract_info_of_read(tmp_list, clip_cutoff, canonical_strings_for_each_amplicon, score_mq):
     """
-    this function takes splitted read (just splitted read string)
-    and return tuples of values:
+    This function takes splitted SAM row and returns tuples of values:
     (CHR, START, END, %GC, [CLIPPED_START_PART, CLIPPED_END_PART])
     """
     flag = tmp_list[1]
@@ -243,22 +248,16 @@ def extract_info_of_read(tmp_list, clip_cutoff, canonical_strings_for_each_ampli
     string = tmp_list[9]
     clipped_parts = []
 
-    true_length = 0
-    """
-    types of clipping (hard and soft)
-    """
     clipping_letters = ("S", "H")
 
     first_number = cigar_string[0]
     last_number = cigar_string[-2]
-
     first_option = cigar_string[1]
     last_option = cigar_string[-1]
 
+    true_length = 0
     number_of_clipping_letters = 0
-
-    number_of_matches = 0
-
+    
     for i in xrange(len(cigar_string) - 1):
         if type(cigar_string[i]) == int:
             option = cigar_string[i + 1]
@@ -267,11 +266,8 @@ def extract_info_of_read(tmp_list, clip_cutoff, canonical_strings_for_each_ampli
             elif option in clipping_letters:
                 number_of_clipping_letters += cigar_string[i]
                 true_length += cigar_string[i]
-            if option == "M":
-                number_of_matches += cigar_string[i]
 
     not_chimera_flag = True
-
     if first_option in clipping_letters:
         start_pos += first_number
         true_length -= first_number
@@ -485,109 +481,98 @@ def calculate_corrected_reads(outputdir, sam_dirpath, panel_of_amplicons, min_le
     Percentage mode / BP mode - different metrics of intersection.
     Output: file with samples and their coverages in each amplicon.
     """
+    # Compile Java code
     string_to_cmd = "javac ./parseq/chimeric_solver/Main.java"
     os.system(string_to_cmd)
+
+    # Convert MAPQ (mapping quality)
     if mq > 0:
         score_of_mq = floor(-10 * log10(mq)) # prob -> score
     else:
         score_of_mq = 0
 
-    dict_to_know_what_amplicons_are_more_chimeric = defaultdict(int)
-
-    chromosomes_in_bed = list(panel_of_amplicons.iterkeys())
-
+    # Make a dictionary of "amplicon": "amplicon row draft" pairs
     string_to_output = {}
-    top_string = "Gene\tTarget\t"
     for key in panel_of_amplicons:
         for ampl in panel_of_amplicons[key]:
             string_to_output[ampl] = "N/A\t"
             string_to_output[ampl] += ampl.ID + "\t"
 
-
-    if not os.path.exists(sam_dirpath):
-        os.makedirs(sam_dirpath)
-
-
+    # Iterate
+    alphabet = ("A","C","G","T","-","I")
+    nucleotides_alphabet = ("A","C","G","T")
+    dict_to_know_what_amplicons_are_more_chimeric = defaultdict(int)
+    top_string = "Gene\tTarget\t"
     for filename in os.listdir(sam_dirpath):
         logger.info(filename)
-        max_length = 0
-        starts_end_ends = defaultdict(list)
-
         if not filename.endswith((".sam",".SAM")):
             continue
 
         total_reads_in_file = 0
-        after_processing = 0
-
         reads_after_final_processing = defaultdict(list)
-
+        
+        # Make canonical_strings_for_each_amplicon and canonical_strings_for_each_amplicon_with_primers dictionaries' structure to fill later
+        canonical_strings_for_each_amplicon = {}
+        canonical_strings_for_each_amplicon_with_primers = {}
+        for key in panel_of_amplicons:
+            canonical_strings_for_each_amplicon[key] = {}
+            canonical_strings_for_each_amplicon_with_primers[key] = {}
+            for ampl in panel_of_amplicons[key]:
+                len_of_consensus = ampl.length + 120
+                # canonical string, length of intersection, number of Ms, abs(start_read - start_ampl) + abs(end_read - end_ampl)
+                canonical_strings_for_each_amplicon[key][ampl] = {}
+                canonical_strings_for_each_amplicon_with_primers[key][ampl] = {}
+                for letter in alphabet:
+                    canonical_strings_for_each_amplicon[key][ampl][letter] = [0 for i in xrange(len_of_consensus)]
+        
+        # Iterate through SAM rows and process suitable alignments with extract_info_of_read(), add the processed read to reads_after_final_processing
         with open(os.path.join(sam_dirpath, filename)) as sam_to_correct:
-            alphabet = ("A","C","G","T","-","I")
-            nucleotides_alphabet = ("A","C","G","T")
-            canonical_strings_for_each_amplicon = {}
-            canonical_strings_for_each_amplicon_with_primers = {}
-            for key in panel_of_amplicons:
-                canonical_strings_for_each_amplicon[key] = {}
-                canonical_strings_for_each_amplicon_with_primers[key] = {}
-                for ampl in panel_of_amplicons[key]:
-                    len_of_consensus = ampl.length + 120
-                    # canonical string, length of intersection, number of Ms, abs(start_read - start_ampl) + abs(end_read - end_ampl)
-                    canonical_strings_for_each_amplicon[key][ampl] = {}
-                    canonical_strings_for_each_amplicon_with_primers[key][ampl] = {}
-                    for letter in alphabet:
-                        canonical_strings_for_each_amplicon[key][ampl][letter] = [0 for i in xrange(len_of_consensus)]
-
             for tmp_line in sam_to_correct:
-                clipping = 0
-
                 if not tmp_line.startswith("@"):
-                    clipping = 0
                     tmp_list = tmp_line.split()
                     total_reads_in_file += 1
-                    if (int(tmp_list[4]) > 0 and
-                        len(tmp_list[9]) >= min_length): # and
-                        # tmp_list[2] in chromosomes_in_bed): # if throw away, then reads
+                    if (int(tmp_list[4]) > 0 and len(tmp_list[9]) >= min_length):
                         processed_read = extract_info_of_read(tmp_list, int(clip_cutoff), canonical_strings_for_each_amplicon, score_of_mq)
                         if len(processed_read) > 1:
                             reads_after_final_processing[processed_read[0]].append(processed_read)
-                            after_processing += 1
-            for key in panel_of_amplicons:
-                for ampl in panel_of_amplicons[key]:
-                    heterozigouthy_state = False
-                    canonical_read_with_primers = ""
-                    summa = []
-                    for i in xrange(len(canonical_strings_for_each_amplicon[key][ampl][letter])):
-                        summa_in = 0
-                        for letter in nucleotides_alphabet:
-                            summa_in += canonical_strings_for_each_amplicon[key][ampl][letter][i]
-                        summa.append(summa_in)
-                    for i in xrange(len(summa)):
-                        if summa[i] > 0:
-                            max_amount = 0
-                            canonical_letter = ""
-                            lower_threshold_for_amigous_case = 0.4 * summa[i]
-                            upper_threshold_for_amigous_case = 0.6 * summa[i]
-                            for letter in alphabet:
-                                if (canonical_strings_for_each_amplicon[key][ampl][letter][i] > lower_threshold_for_amigous_case and
-                                    canonical_strings_for_each_amplicon[key][ampl][letter][i] < upper_threshold_for_amigous_case):
-                                    canonical_letter = "*"
-                                    break
-                                if (canonical_strings_for_each_amplicon[key][ampl][letter][i] > max_amount and
-                                not letter in ("-","I")):
-                                    canonical_letter = letter
-                                    max_amount = canonical_strings_for_each_amplicon[key][ampl][letter][i]
-                            canonical_read_with_primers += canonical_letter
-                    canonical_strings_for_each_amplicon_with_primers[key][ampl] = canonical_read_with_primers
-
-            chimeras_list = []
-            for chr in reads_after_final_processing:
-                for read in reads_after_final_processing[chr]:
-                    if not read[5] == []:
-                        for elem in read[5]:
-                            without_homopolymers = remove_homopolymers(elem, 4)
-                            chimeras_list.append(without_homopolymers)
-
-
+                            
+        for key in panel_of_amplicons:
+            for ampl in panel_of_amplicons[key]:
+                heterozigouthy_state = False
+                canonical_read_with_primers = ""
+                summa = []
+                for i in xrange(len(canonical_strings_for_each_amplicon[key][ampl][letter])):
+                    summa_in = 0
+                    for letter in nucleotides_alphabet:
+                        summa_in += canonical_strings_for_each_amplicon[key][ampl][letter][i]
+                    summa.append(summa_in)
+                for i in xrange(len(summa)):
+                    if summa[i] > 0:
+                        max_amount = 0
+                        canonical_letter = ""
+                        lower_threshold_for_amigous_case = 0.4 * summa[i]
+                        upper_threshold_for_amigous_case = 0.6 * summa[i]
+                        for letter in alphabet:
+                            if (canonical_strings_for_each_amplicon[key][ampl][letter][i] > lower_threshold_for_amigous_case and
+                                canonical_strings_for_each_amplicon[key][ampl][letter][i] < upper_threshold_for_amigous_case):
+                                canonical_letter = "*"
+                                break
+                            if (canonical_strings_for_each_amplicon[key][ampl][letter][i] > max_amount and
+                            not letter in ("-","I")):
+                                canonical_letter = letter
+                                max_amount = canonical_strings_for_each_amplicon[key][ampl][letter][i]
+                        canonical_read_with_primers += canonical_letter
+                canonical_strings_for_each_amplicon_with_primers[key][ampl] = canonical_read_with_primers
+            
+        chimeras_list = []
+        for chr in reads_after_final_processing:
+            for read in reads_after_final_processing[chr]:
+                if not read[5] == []:
+                    for elem in read[5]:
+                        without_homopolymers = remove_homopolymers(elem, 4)
+                        chimeras_list.append(without_homopolymers)
+        
+        
         if total_reads_in_file < num_of_reads:
             logger.warn('\n'.join(["WARNING",
                              "In file " + str(filename), "only " + str(total_reads_in_file) + " reads! And "
