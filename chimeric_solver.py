@@ -627,16 +627,20 @@ def calculate_corrected_reads(outputdir, sam_dirpath, panel_of_amplicons, min_le
             chimeras_list.append(rev_compl(chimera))
 
 
-        # total reads
+        # Calculate amplicons coverages.
         coverage_of_amplicons = get_coverage(reads_after_final_processing, cutoff,
                                              panel_of_amplicons, percentage_mode_on)
-        counter = 0
-        list_of_ampls_to_search_chimera_in = []
 
+        # Write chimeras longer than 40 bases from chimeras_list to tmp_chimeras.txt.
         with open("tmp_chimeras.txt", "wb") as f:
             for chimera in chimeras_list:
                 if len(chimera) > 40:
                     f.write(chimera + "\n")
+
+        # Write consensus amplicon sequences to tmp_references.txt, with homopolymers of length longer than 4 removed preliminary.
+        # Add consensus amplicon sequences to list_of_ampls_to_search_chimera_in.
+        # Both procedures are performed on consensus amplicon sequences if they are not emply strings.
+        list_of_ampls_to_search_chimera_in = []
         with open("tmp_references.txt", "wb") as f:
             for chr in canonical_strings_for_each_amplicon_with_primers:
                 for ampl in canonical_strings_for_each_amplicon_with_primers[chr]:
@@ -645,10 +649,14 @@ def calculate_corrected_reads(outputdir, sam_dirpath, panel_of_amplicons, min_le
                         f.write(remove_homopolymers(reference, 4) + "\n")
                         list_of_ampls_to_search_chimera_in.append(ampl)
 
-
+        # Execute some Java script related to chimeric_solver.py.
         string_to_cmd = ("").join(["java parseq/chimeric_solver/Main" ])
         os.system(string_to_cmd)
 
+        # tmp_output.txt is not created in chimeric_solver.py.
+        # It seems tmp_output contains number of chimeras aligned to an amplicon (chimeric_increase variable).
+        # It seems tmp_output.txt contains chimeric_increase for each amplicon.
+        counter = 0
         with open("tmp_output.txt", "r") as f:
             for ampl in list_of_ampls_to_search_chimera_in:
                 chimeric_increase = 0
@@ -660,18 +668,23 @@ def calculate_corrected_reads(outputdir, sam_dirpath, panel_of_amplicons, min_le
                 dict_to_know_what_amplicons_are_more_chimeric[ampl] += chimeric_increase
                 counter += chimeric_increase
 
+        # Write chimeras number statistics into the log.
         logger.info(" ".join(["TOTAL AMOUNT OF CHIMERAS OF II TYPE: ", str(len(chimeras_list) / 2)]))
         logger.info(" ".join(["TOTAL AMOUNT OF CHIMERAS OF II TYPE RE-ALIGNED: ", str(counter)]))
 
-
+        # Prepare lines to be writted to amplicon coverage table.
+        # Update table header.
         top_string += (filename + "\t")
+        # Create amplicon coverage line for the current SAM file.
         for key in panel_of_amplicons:
             for ampl in panel_of_amplicons[key]:
                 string_to_output[ampl] += str(coverage_of_amplicons[ampl])+ "\t"
 
+    # Write number of chimeras of type II intersecting a specific amplicon to the log.
     for key in dict_to_know_what_amplicons_are_more_chimeric:
         logger.info(" ".join(["AMPL", str(key.ID), str(key.chromosome), "HAS THIS AMOUNT OF CHIMERAS II TYPE", str(dict_to_know_what_amplicons_are_more_chimeric[key])]))
 
+    # Write amplicon coverage table.
     result_filepath = outputdir + '/' + result_file
     with open(result_filepath, "wb") as output_file:
             output_file.write(top_string + "\n")
