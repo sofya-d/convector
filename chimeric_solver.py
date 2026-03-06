@@ -1,5 +1,6 @@
 #!/usr/bin/env python2
 
+# Import
 import argparse
 import os
 import sys
@@ -9,9 +10,15 @@ import time
 import logging
 from logging.config import fileConfig
 
+# Logging
 loginipath = ('logging_config.ini')
 fileConfig(loginipath, defaults={'logfilename': 'pipeline.log'})
 logger = logging.getLogger('CONVector_logger')
+
+
+
+
+### Amplicon ================================================================================================================================================================================
 
 class Amplicon:
     """
@@ -93,6 +100,100 @@ class Amplicon:
         else:
             return common_part
 
+### Amplicon ================================================================================================================================================================================
+
+
+
+
+### additional_info() =======================================================================================================================================================================
+
+def additional_info(panel_of_amplicons, add_file):
+    """
+    :param panel_of_amplicons: dict of amplicons from .bed file
+    :param add_file: file with the information about pools
+    :return: panel of amplicons with additional fields added to each amplicon, type of pool
+    """
+    with open(add_file) as f:
+        array_of_string = f.read().split("\r")
+        for tmp_line in array_of_string:
+                tmp_list = tmp_line.split()
+                if len(tmp_list) <= 6:
+                    continue
+                else:
+                    elem.pool = tmp_list[0][-3]
+                    elem.fwd_primer = tmp_list[4]
+                    elem.rev_primer = tmp_list[5]
+                    elem.reference = ""
+                    if tmp_list[8] in ("exon","intron"):
+                        """
+                        two types of markings in pools list
+                        """
+                        chromosome = tmp_list[11]
+                        for elem in panel_of_amplicons[chromosome]:
+                            if elem.ID == tmp_list[3]:
+                                elem.length = int(tmp_list[15]) - int(tmp_list[12])
+                                elem.gene_symbol = tmp_list[7] + tmp_list[8] + tmp_list[9]
+                    else:
+                        chromosome = tmp_list[9]
+                        for elem in panel_of_amplicons[chromosome]:
+                            if elem.ID == tmp_list[3]:
+                                elem.length = int(tmp_list[13]) - int(tmp_list[10])
+                                elem.gene_symbol = tmp_list[7]
+
+    return panel_of_amplicons
+
+### additional_info() =======================================================================================================================================================================
+
+
+
+
+### bam_to_sam() ============================================================================================================================================================================
+
+def bam_to_sam(directory, sam_dirpath):
+    """
+    :param directory: path to directory with .bam files
+    :param sam_dirpath: output directory for .sam files
+    :return:
+    """
+    if not (os.path.exists(sam_dirpath)):
+        logger.warn("Making directory... " + sam_dirpath)
+        os.makedirs(sam_dirpath)
+    else:
+        for the_file in os.listdir(sam_dirpath):
+            file_path = os.path.join(sam_dirpath, the_file)
+            try:
+                if os.path.isfile(file_path):
+                    os.unlink(file_path)
+            except Exception as e:
+                logger.warn(str(e))
+    number_of_bam_files = 0
+    for filename in os.listdir(directory):
+        if filename.endswith((".bam",".BAM")) and not filename.startswith("nomatch"):
+            number_of_bam_files += 1
+
+    if number_of_bam_files == 0:
+        logger.warn("There is no bam file in directory. Stopped.")
+        sys.exit()
+
+    counter_of_progress = 0
+    for filename in os.listdir(directory):
+        tmp_string = ""
+        if filename.endswith((".bam",".BAM"))  and not filename.startswith("nomatch"):
+            out_file_name = filename[:-4] + ".sam"
+            tmp_string = ("samtools view -h " + os.path.join(directory,
+                          filename) + " > " +
+                          os.path.join(sam_dirpath, out_file_name))
+            os.system(tmp_string)
+            counter_of_progress += 1
+            logger.info(" ".join(["Progress in converting to SAM:", str(counter_of_progress),
+                   "files of", str(number_of_bam_files), "total"]))
+
+### bam_to_sam() ============================================================================================================================================================================
+
+
+
+
+### parse_bed_file() ========================================================================================================================================================================
 
 def parse_bed_file(directory, filename):
     """
@@ -134,84 +235,15 @@ def parse_bed_file(directory, filename):
 
     return panel_of_amplicons, counter_of_beds
 
+### parse_bed_file() ========================================================================================================================================================================
 
 
-def additional_info(panel_of_amplicons, add_file):
-    """
-    :param panel_of_amplicons: dict of amplicons from .bed file
-    :param add_file: file with the information about pools
-    :return: panel of amplicons with additional fields added to each amplicon, type of pool
-    """
-    with open(add_file) as f:
-        array_of_string = f.read().split("\r")
-        for tmp_line in array_of_string:
-                tmp_list = tmp_line.split()
-                if len(tmp_list) <= 6:
-                    continue
-                else:
-                    elem.pool = tmp_list[0][-3]
-                    elem.fwd_primer = tmp_list[4]
-                    elem.rev_primer = tmp_list[5]
-                    elem.reference = ""
-                    if tmp_list[8] in ("exon","intron"):
-                        """
-                        two types of markings in pools list
-                        """
-                        chromosome = tmp_list[11]
-                        for elem in panel_of_amplicons[chromosome]:
-                            if elem.ID == tmp_list[3]:
-                                elem.length = int(tmp_list[15]) - int(tmp_list[12])
-                                elem.gene_symbol = tmp_list[7] + tmp_list[8] + tmp_list[9]
-                    else:
-                        chromosome = tmp_list[9]
-                        for elem in panel_of_amplicons[chromosome]:
-                            if elem.ID == tmp_list[3]:
-                                elem.length = int(tmp_list[13]) - int(tmp_list[10])
-                                elem.gene_symbol = tmp_list[7]
-
-    return panel_of_amplicons
 
 
-def bam_to_sam(directory, sam_dirpath):
-    """
-    :param directory: path to directory with .bam files
-    :param sam_dirpath: output directory for .sam files
-    :return:
-    """
-    if not (os.path.exists(sam_dirpath)):
-        logger.warn("Making directory... " + sam_dirpath)
-        os.makedirs(sam_dirpath)
-    else:
-        for the_file in os.listdir(sam_dirpath):
-            file_path = os.path.join(sam_dirpath, the_file)
-            try:
-                if os.path.isfile(file_path):
-                    os.unlink(file_path)
-            except Exception as e:
-                logger.warn(str(e))
-    number_of_bam_files = 0
-    for filename in os.listdir(directory):
-        if filename.endswith((".bam",".BAM")) and not filename.startswith("nomatch"):
-            number_of_bam_files += 1
+### calculate_corrected_reads() =============================================================================================================================================================
 
-    if number_of_bam_files == 0:
-        logger.warn("There is no bam file in directory. Stopped.")
-        sys.exit()
-
-    counter_of_progress = 0
-    for filename in os.listdir(directory):
-        tmp_string = ""
-        if filename.endswith((".bam",".BAM"))  and not filename.startswith("nomatch"):
-            out_file_name = filename[:-4] + ".sam"
-            tmp_string = ("samtools view -h " + os.path.join(directory,
-                          filename) + " > " +
-                          os.path.join(sam_dirpath, out_file_name))
-            os.system(tmp_string)
-            counter_of_progress += 1
-            logger.info(" ".join(["Progress in converting to SAM:", str(counter_of_progress),
-                   "files of", str(number_of_bam_files), "total"]))
-
-
+## extract_info_of_read() -------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# process_cigar() -------------------------------------------------------------------
 def process_cigar(cigar):
     """
     :param cigar: CIGAR-string
@@ -233,8 +265,8 @@ def process_cigar(cigar):
             option += ch
     cigar_list.append(option)
     return cigar_list
+# process_cigar() -------------------------------------------------------------------
 
-counter_glob = 0
 
 def extract_info_of_read(tmp_list, clip_cutoff, canonical_strings_for_each_amplicon, score_mq):
     """
@@ -337,8 +369,11 @@ def extract_info_of_read(tmp_list, clip_cutoff, canonical_strings_for_each_ampli
                         else:
                             logger.warn(" ".join["Unknown option in CIGAR:", option])
     return result_tuple
+## extract_info_of_read() -------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 
+## get_coverage() ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# if_len_of_list_intersected_equal_two() ---------------------------------------------------------------------
 def if_len_of_list_intersected_equal_two(list_of_potentially_intersected, intersection, coverage_of_amplicons):
     """
     :param list_of_potentially_intersected: list of amplicons that intersects
@@ -354,6 +389,8 @@ def if_len_of_list_intersected_equal_two(list_of_potentially_intersected, inters
         coverage_of_amplicons[first] += 1
     else:
         coverage_of_amplicons[second] += 1
+# if_len_of_list_intersected_equal_two() ---------------------------------------------------------------------
+
 
 def get_coverage(reads_after_final_processing, cutoff,
                  panel_of_amplicons, percentage_mode_on):
@@ -466,8 +503,32 @@ def get_coverage(reads_after_final_processing, cutoff,
     
     logger.info(" ".join(["TOTAL AMOUNT OF I TYPE CHIMERAS:", str(total_num_of_chimeras_of_first_type)]))
     return coverage_of_amplicons
+## get_coverage() ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 
+## remove_homopolymers() --------------------------------------------------------------------------------------------------------------------------------------------------------------------
+def remove_homopolymers(string, max_homopolymer_length):
+    """
+    :param string: DNA sequence
+    :param max_homopolymer_length: maximum allowed length of homopolymer
+    :return: sequence without homopolymers
+    """
+    result_string = ""
+    homo_symbol = "$"
+    homo_len = 1
+    for i in xrange(len(string)):
+        if homo_symbol == string[i] and homo_len < max_homopolymer_length:
+            homo_len += 1
+            result_string += string[i]
+        elif not homo_symbol == string[i]:
+            homo_symbol = string[i]
+            result_string += string[i]
+            homo_len = 1
+    return result_string
+## remove_homopolymers() --------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+## rev_compl() ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 def rev_compl(string):
     """
     :param string: DNA containing 4 nucleotides.
@@ -487,26 +548,10 @@ def rev_compl(string):
         else:
             res_string += letter
     return res_string
+## rev_compl() ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-def remove_homopolymers(string, max_homopolymer_length):
-    """
-    :param string: DNA sequence
-    :param max_homopolymer_length: maximum allowed length of homopolymer
-    :return: sequence without homopolymers
-    """
-    result_string = ""
-    homo_symbol = "$"
-    homo_len = 1
-    for i in xrange(len(string)):
-        if homo_symbol == string[i] and homo_len < max_homopolymer_length:
-            homo_len += 1
-            result_string += string[i]
-        elif not homo_symbol == string[i]:
-            homo_symbol = string[i]
-            result_string += string[i]
-            homo_len = 1
-    return result_string
 
+## calculate_corrected_reads() --------------------------------------------------------------------------------------------------------------------------------------------------------------
 def calculate_corrected_reads(outputdir, sam_dirpath, panel_of_amplicons, min_length, mq,
                               percentage_mode_on, clip_cutoff, cutoff, num_of_reads,
                               result_file):
@@ -691,7 +736,14 @@ def calculate_corrected_reads(outputdir, sam_dirpath, panel_of_amplicons, min_le
             for key in panel_of_amplicons.iterkeys():
                 for amplicon in panel_of_amplicons[key]:
                     output_file.write(string_to_output[amplicon] + "\n")
+## calculate_corrected_reads() --------------------------------------------------------------------------------------------------------------------------------------------------------------
 
+### calculate_corrected_reads() =============================================================================================================================================================
+
+
+
+
+### main() ==================================================================================================================================================================================
 
 def main():
     parser = argparse.ArgumentParser(description="""Convert everything from BAM to SAM.
@@ -759,6 +811,10 @@ Needs input directory with bam files and file with coordinates of amplicons.""")
                               len_threshold, mq, percentage_mode_on,
                               clip_cutoff, cutoff, num_of_reads,
                               result_file)
+
+### main() ==================================================================================================================================================================================
+
+
 
 
 if __name__ == "__main__":
