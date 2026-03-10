@@ -282,9 +282,11 @@ def main():
                 clean_chromosomes_amplicons[key].append(amplicon.ID)
             all_amplicon_names[key].append(amplicon.ID)
 
-    quantiles99, quantiles95 = return_quantiles_chisq()
+    # Normalize amplicons' coverages by total chromosome coverage.
     total_amount_sample_chromosome_test = normalize_data_inside_chromosomes(clean_chromosomes_amplicons, samples_to_test)
     total_amount_sample_chromosome_train = normalize_data_inside_chromosomes(clean_chromosomes_amplicons, samples_to_train)
+
+    # Calculate some statistics based on amplicon's coverages, write into the dictionaries.
     ellipsoids_for_chromosomes = {}
     ellipsoids_for_chromosomes_test = {}
     for chr, amplicons_from_chromosome in clean_chromosomes_amplicons.iteritems():
@@ -292,16 +294,20 @@ def main():
             ellipsoids_for_chromosomes[chr] = form_ellipsoid(samples_to_train, amplicons_from_chromosome)
             ellipsoids_for_chromosomes_test[chr] = form_ellipsoid(samples_to_test, amplicons_from_chromosome)
 
-    list_of_normal_or_not_dicts = []
-    list_of_robust_variances_control_against_control = []
+    # Create list_of_robust_variances_test_against_test variable.
     list_of_robust_variances_test_against_test = []
-
     for chr, ellipsoid_test in ellipsoids_for_chromosomes_test.iteritems():
         list_of_amplicons_to_test = clean_chromosomes_amplicons[chr]
         for amplicon, element in ellipsoid_test.iteritems():
             if amplicon in list_of_amplicons_to_test:
                 list_of_robust_variances_test_against_test.append(element[1])
 
+    # Create variables normal_or_not and avtc_residuals_for_amplicons.
+    # normal_or_not contains values that signify whether chromosome coverage is regular or not.
+    # avtc_residuals_for_amplicons contains statistics for ARV computing.
+    quantiles99, quantiles95 = return_quantiles_chisq()
+    list_of_robust_variances_control_against_control = []
+    list_of_normal_or_not_dicts = []
     for chr, ellipsoid in ellipsoids_for_chromosomes.iteritems():
         list_of_amplicons_to_test = clean_chromosomes_amplicons[chr]
         for amplicon, element in ellipsoid.iteritems():
@@ -312,14 +318,15 @@ def main():
             normal_or_not, avtc_residuals_for_amplicons = diagnose_chromosome_ellipsoid(samples_to_test, ellipsoid, list_of_amplicons_to_test, qChisq, num_of_accepted)
             list_of_normal_or_not_dicts.append(normal_or_not)
 
-
+    # Get list of samples with irregular chromosomes' coverage.
     samples_to_test_qc = sorted(list(samples_to_test.iterkeys()))
     qc_negative_list = form_list_of_qc_negative(list_of_normal_or_not_dicts, samples_to_test_qc)
 
-
+    # Calculate ARV statistics for "train" (control) and test data sets.
     avrcc = statistics.mean(list_of_robust_variances_control_against_control)
     avrtt = statistics.mean(list_of_robust_variances_test_against_test)
 
+    # Write ARV statistics and sample filtration results to qc_control_log.txt.
     with open("qc_control_log.txt","wb") as qc_report:
         arvc = (" ").join(["Average Robust Variance Of Control Dataset with filename", file_with_training_samples, ":", str(avrcc), "\n"])
         qc_report.write(arvc + "\n")
@@ -327,12 +334,12 @@ def main():
         qc_report.write(arvt + "\n")
         logger.info(" ".join(["ARVc =", str(arvc)]))
         logger.info(" ".join(["ARVt =", str(arvt)]))
-
         qc_report.write((" ").join(["Total amount of samples filtered out using Quality Control algorithm:", str(len(qc_negative_list)), "\n\n"]) )
-
         for negative_sample in qc_negative_list:
             qc_report.write(("").join([negative_sample, " \n - did not passed QC Control", "\n\n"]))
-
+    
+    # Write amplicons' coverage without filtered out samples.
+    # Add control samples to the table if merging of test and control samples is allowed by mode variable.
     output_result_file(true_coverages_of_samples_to_test, true_coverages_of_samples_to_train, qc_negative_list, all_amplicon_names, run_id, mode)
 
 # main() ====================================================================================================================================================================================
