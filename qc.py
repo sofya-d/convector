@@ -15,25 +15,8 @@ loginipath = ('logging_config.ini')
 fileConfig(loginipath, defaults={'logfilename': 'pipeline.log'})
 logger = logging.getLogger('CONVector_logger')
 
-def return_quantiles_chisq():
-    """
-    Reads files with quantiles of chi squared distribution, degrees of freedom: from 1 to 500 (depending on number
-    of samples).
-    :return: tuple of dictionaries, {degree of freedom: corresponding quantile}
-    """
-    quantiles99 = {}
-    quantiles95 = {}
-    with open("./quantiles/quantile_chisq_99.txt") as f:
-        counter = 1
-        for line in f:
-            quantiles99[counter] = float(line.split()[0])
-            counter += 1
-    with open("./quantiles/quantile_chisq_95.txt") as f:
-        counter = 1
-        for line in f:
-            quantiles95[counter] = float(line.split()[0])
-            counter += 1
-    return quantiles99, quantiles95
+
+# parse_file_with_coverages() ===============================================================================================================================================================
 
 def parse_file_with_coverages(filename):
     """
@@ -83,6 +66,36 @@ def parse_file_with_coverages(filename):
                 low_covered_ampls.append(ampl_name)
     return samples, low_covered_ampls, true_coverages_clean, true_coverages
 
+# parse_file_with_coverages() ===============================================================================================================================================================
+
+
+# return_quantiles_chisq() ==================================================================================================================================================================
+
+def return_quantiles_chisq():
+    """
+    Reads files with quantiles of chi squared distribution, degrees of freedom: from 1 to 500 (depending on number
+    of samples).
+    :return: tuple of dictionaries, {degree of freedom: corresponding quantile}
+    """
+    quantiles99 = {}
+    quantiles95 = {}
+    with open("./quantiles/quantile_chisq_99.txt") as f:
+        counter = 1
+        for line in f:
+            quantiles99[counter] = float(line.split()[0])
+            counter += 1
+    with open("./quantiles/quantile_chisq_95.txt") as f:
+        counter = 1
+        for line in f:
+            quantiles95[counter] = float(line.split()[0])
+            counter += 1
+    return quantiles99, quantiles95
+
+# return_quantiles_chisq() ==================================================================================================================================================================
+
+
+# normalize_data_inside_chromosomes() =======================================================================================================================================================
+
 def normalize_data_inside_chromosomes(clean_chromosomes_amplicons, samples):
     """
     :param clean_chromosomes_amplicons: coverages of amplicons inside one chromosome
@@ -102,6 +115,11 @@ def normalize_data_inside_chromosomes(clean_chromosomes_amplicons, samples):
             total_amount_sample_chromosome[sample][chromosome] = sum(summa_of_coverages)
     return total_amount_sample_chromosome
 
+# normalize_data_inside_chromosomes() =======================================================================================================================================================
+
+
+# form_ellipsoid() ==========================================================================================================================================================================
+
 def form_ellipsoid(samples_to_train, amplicons_from_chromosome):
     """
     :param samples_to_train: dictionary {amplicon name : coverages in samples from training samples}
@@ -115,6 +133,11 @@ def form_ellipsoid(samples_to_train, amplicons_from_chromosome):
             amplicon_values.append(info[amplicon])
         ellipsoid[amplicon] = (statistics.medianW(amplicon_values), statistics.sn_estimator(amplicon_values) ** 2)
     return ellipsoid
+
+# form_ellipsoid() ==========================================================================================================================================================================
+
+
+# diagnose_chromosome_ellipsoid() ===========================================================================================================================================================
 
 def diagnose_chromosome_ellipsoid(samples_to_test, ellipsoid, list_of_amplicons_to_test, qChisq, num_of_accepted):
     """
@@ -144,6 +167,11 @@ def diagnose_chromosome_ellipsoid(samples_to_test, ellipsoid, list_of_amplicons_
             normal_or_not[sample] = 0
     return normal_or_not, avtc_residuals_for_amplicons
 
+# diagnose_chromosome_ellipsoid() ===========================================================================================================================================================
+
+
+# form_list_of_qc_negative() ================================================================================================================================================================
+
 def form_list_of_qc_negative(list_of_normal_or_not_dicts, samples_to_test_qc):
     """
     :param list_of_normal_or_not_dicts: dict {sample : list of 0 and 1, determining the irregularity of coverage inside
@@ -170,6 +198,11 @@ def form_list_of_qc_negative(list_of_normal_or_not_dicts, samples_to_test_qc):
             logger.info("QC Positive " + sample)
     logger.warn(" ".join(["Overall:", str(counter_of_negative), "samples was filtered out and", str(counter_of_positive), "were accepted"]))
     return list_of_negatives
+
+# form_list_of_qc_negative() ================================================================================================================================================================
+
+
+# output_result_file() ======================================================================================================================================================================
 
 def output_result_file(true_coverages_of_samples_to_test, true_coverages_of_samples_to_train, qc_negative_list, clean_chromosomes_amplicons, run_id, mode):
     """
@@ -206,6 +239,10 @@ def output_result_file(true_coverages_of_samples_to_test, true_coverages_of_samp
                 new_result_string += "\n"
                 f.write(new_result_string)
 
+# output_result_file() ======================================================================================================================================================================
+
+
+# main() ====================================================================================================================================================================================
 
 def main():
     bed_file = sys.argv[1]
@@ -286,5 +323,8 @@ def main():
 
     output_result_file(true_coverages_of_samples_to_test, true_coverages_of_samples_to_train, qc_negative_list, all_amplicon_names, run_id, mode)
 
+# main() ====================================================================================================================================================================================
+
 
 main()
+
