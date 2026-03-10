@@ -245,13 +245,17 @@ def output_result_file(true_coverages_of_samples_to_test, true_coverages_of_samp
 # main() ====================================================================================================================================================================================
 
 def main():
+    # Import arguments
     bed_file = sys.argv[1]
     file_with_coverages = sys.argv[2]
     file_with_training_samples = sys.argv[3]
     run_id = sys.argv[4]
     percent = float(sys.argv[5])
-    directory = "./"
+
+    # Import amplicons' coordinates table
+    directory = '/'.join(bed_file.split('/')[:-1])
     panel_of_amplicons, counter_of_beds = chimeric_solver.parse_bed_file(directory, bed_file)
+    
     samples_to_test, low_covered_ampls_test, clean_coverages_of_samples_to_test, true_coverages_of_samples_to_test = parse_file_with_coverages(file_with_coverages)
     samples_to_train, low_covered_ampls_train, clean_coverages_of_samples_to_train, true_coverages_of_samples_to_train = parse_file_with_coverages(file_with_training_samples)
     set_of_low_covered_ampls = set(low_covered_ampls_test + low_covered_ampls_train)
