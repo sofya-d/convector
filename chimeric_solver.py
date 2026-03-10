@@ -477,6 +477,7 @@ def get_coverage(reads_after_final_processing, cutoff,
                         if_len_of_list_intersected_equal_two(list_of_potentially_intersected, intersection, coverage_of_amplicons)
                     else:
                         coverage_of_amplicons[left_ampl] += 1
+                        coverage_of_amplicons[center_amplicon] += 1
                         coverage_of_amplicons[right_ampl] += 1
                         total_num_of_chimeras_of_first_type += 1
 
