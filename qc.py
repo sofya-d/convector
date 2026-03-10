@@ -246,28 +246,36 @@ def output_result_file(true_coverages_of_samples_to_test, true_coverages_of_samp
 
 def main():
     # Import arguments
-    bed_file = sys.argv[1]
-    file_with_coverages = sys.argv[2]
-    file_with_training_samples = sys.argv[3]
-    run_id = sys.argv[4]
-    percent = float(sys.argv[5])
+    bed_file = sys.argv[1]                   # Panel of amplicons
+    file_with_coverages = sys.argv[2]        # File with amplicons' coverages, calculated by chimeric_solver.py
+    file_with_training_samples = sys.argv[3] # Control data set amplicons' coverages
+    run_id = sys.argv[4]                     # Output file name
+    percent = float(sys.argv[5])             # Percent
 
     # Import amplicons' coordinates table
     directory = '/'.join(bed_file.split('/')[:-1])
     panel_of_amplicons, counter_of_beds = chimeric_solver.parse_bed_file(directory, bed_file)
-    
+
+    # Import amplicons' coverage for "train" and "test" sets, gather statistics.
+    ## samples_to_<test/train> is a dictionary with structure: {sample : {amplicon : coverages}}.
+    ## low_covered_ampls_<test/train> is a list with low covered amplicons.
+    ## clean_coverages_of_samples_to_<test/train> contains coverages of samples without low covered amplicons for statistical analysis.
+    ## true_coverages_of_samples_to_<test/train> contains coverages of all samples (for output).
     samples_to_test, low_covered_ampls_test, clean_coverages_of_samples_to_test, true_coverages_of_samples_to_test = parse_file_with_coverages(file_with_coverages)
     samples_to_train, low_covered_ampls_train, clean_coverages_of_samples_to_train, true_coverages_of_samples_to_train = parse_file_with_coverages(file_with_training_samples)
+
+    # Compute a union of low-covered amplicons in "train" and "test" sets.
     set_of_low_covered_ampls = set(low_covered_ampls_test + low_covered_ampls_train)
-    mode = 0 # mode is equal to 1 if the Control (Train) and Test samples differ. Otherwise, mode = 0.
+
+    # Set mode.
+    ## Mode is equal to 1 if the control (train) and test samples differ. Otherwise, mode = 0.
+    mode = 0
     if file_with_coverages != file_with_training_samples:
         mode = 1
 
-
-    qc_by_chromosomes = defaultdict(int)
+    # Create a list of amplicons with low coverage and a list of all amplicons.
     clean_chromosomes_amplicons = defaultdict(list)
     all_amplicon_names = defaultdict(list)
-
     for key in panel_of_amplicons:
         for amplicon in panel_of_amplicons[key]:
             if amplicon.ID not in set_of_low_covered_ampls:
