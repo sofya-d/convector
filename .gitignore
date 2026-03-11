@@ -1,4 +1,5 @@
 .ipynb_checkpoints/
+deletionsAnalysis/*.class
 output_with_SAMs/
 parseq/
 result/
