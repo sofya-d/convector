@@ -12,9 +12,9 @@ loginipath = ('logging_config.ini')
 fileConfig(loginipath, defaults={'logfilename': 'pipeline.log'})
 logger = logging.getLogger('CONVector_logger')
 
-def get_coverages(bam_folder, bed_file, id_of_run, output_folder):
+def get_coverages(bam_dirpath, amplicons_filepath, out_prfx, out_dir):
     """Launch chimeric_solver and counts coverages. Save the output .xls file to the directory ./result by default"""
-    string_to_cmd = ("").join(["python2 chimeric_solver.py --dir ", bam_folder, " --bed ", bed_file, " --resFile ", id_of_run, ".xls", " --conv --out ", output_folder])
+    string_to_cmd = ("").join(["python2 chimeric_solver.py --dir ", bam_dirpath, " --bed ", amplicons_filepath, " --resFile ", out_prfx, ".xls", " --conv --out ", out_dir])
     os.system(string_to_cmd)
 
 def get_quantiles():
@@ -46,82 +46,87 @@ def get_quantiles():
 
     return quant_0995, quant_099, quant_098, quant_095
 
-def get_tmp_del_files(bed_file, quant_dict_del, quant_dict_dup, id_of_run, min_cor, mode):
+def get_tmp_del_files(amplicons_filepath, quant_dict_del, quant_dict_dup, out_prfx, min_corr, mode):
     """Launch CONVector using predefined parameters, output - files with CNVs
     (outputId_of_task_before_LDA and outputId_of_task_after_LDA)"""
     num_of_samples = 0
-    with open("./result/" + id_of_run + "_qc.xls") as f:
+    with open("./result/" + out_prfx + "_qc.xls") as f:
         num_of_samples = len(f.readline().split()) - 2
     x = str(quant_dict_del[num_of_samples])
     y = str(quant_dict_dup[num_of_samples])
     string_to_cmd = "javac ./deletionsAnalysis/Main.java"
     os.system(string_to_cmd)
-    string_to_cmd = ("").join(["java  deletionsAnalysis/Main ", " -d ./result/", id_of_run,
-                               "_qc.xls", " -b ", bed_file, " -f output", id_of_run, " -mc ", min_cor, " -mnm 5 -nne 4 -nod 4 -lb -",
+    string_to_cmd = ("").join(["java  deletionsAnalysis/Main ", " -d ./result/", out_prfx,
+                               "_qc.xls", " -b ", amplicons_filepath, " -f output", out_prfx, " -mc ", min_corr, " -mnm 5 -nne 4 -nod 4 -lb -",
                                x, " -ub ", y , " -dist 1000000 -lcb 25000 -lca 50"])
     if mode:
         string_to_cmd += " -c"
     logger.warn(string_to_cmd)
     os.system(string_to_cmd)
 
-def get_results(id_of_run, output_folder):
+def get_results(out_prfx, out_dir):
     """Launch finalizer and creates a report about CNVs, .xls file with name
     result_before_LDA_id_of_task.xls and result_after_LDA_id_of_task.xls"""
-    string_to_get_final_results_unsupervised = ("").join(["python2 finalizer.py -i output", id_of_run, ".xls -o result_before_LDA_", id_of_run, ".xls"])
-    string_to_get_final_results_supervised = ("").join(["python2 finalizer.py -i output", id_of_run, "_after_LDA.xls -o result_after_LDA_", id_of_run, ".xls"])
+    string_to_get_final_results_unsupervised = ("").join(["python2 finalizer.py -i output", out_prfx, ".xls -o result_before_LDA_", out_prfx, ".xls"])
+    string_to_get_final_results_supervised = ("").join(["python2 finalizer.py -i output", out_prfx, "_after_LDA.xls -o result_after_LDA_", out_prfx, ".xls"])
     os.system(string_to_get_final_results_unsupervised)
     os.system(string_to_get_final_results_supervised)
 
 def main():
+    # Create arguments parser
     parser = argparse.ArgumentParser(description="""This is a pipeline for the detection of CNV in the data
     obtained with parallel target sequencing and AmpliSeq. For changing the parameters you can look through this Python script""")
-    parser.add_argument('--dir','-d', action="store", dest = "directory",
-                        required=False, default="",
-                        help = 'Directory with BAM files.')
-    parser.add_argument('--bed','-b', action="store", dest = "bed",
-                        required=True,
-                        help = 'BED file')
-    parser.add_argument('--mode','-m', action="store", dest = "mode",
-                        default = "normal", required=False,
-                        help = 'Mode (hard, normal, soft)')
-    parser.add_argument('--id','-id', action="store", dest = "id_of_run",
-                        default = "result", required=False,
-                        help = 'Id of run (to output results)')
-    parser.add_argument('--control','-cs', action="store", dest = "control_dataset",
-                        default = "", required=False,
-                        help = 'Id of control dataset (to perform quality control and to merge them)')
-    parser.add_argument('--qc','-qc', action="store", dest = "QCpercent",
-                        default = "0.8", required=False,
-                        help = 'QC percentage')
-    parser.add_argument('--mincor','-mc', action="store", dest = "minimum_correlation",
-                        default = "0.7", required=False,
-                        help = 'Minimum correlation threshold')
-    parser.add_argument('--out','-o', action="store", dest = "output_folder",
-                        default = "", required=False,
-                        help = 'Folder to output files')
-    parser.add_argument('--cleanControl','-cc', action="store_true", dest = "control_dataset_free_of_CNVs",
-                        default = False, required=False,
-                        help = 'Control dataset is free of CNVs')
+    
+    # Add arguments to the arguments parser
+    ## Input
+    parser.add_argument('--ampls', '-a', action='store', dest='amplicons_filepath', required=True,
+                        help='Path to TSV table with amplicons coordinates.')
+    parser.add_argument('--bam_dir', '-b', action='store', dest='bam_dirpath', required=True,
+                        help='Path to directory with input BAM files.')
+    #parser.add_argument('--control','-cs', action="store", dest = "control_dataset",
+    #                    default = "", required=False,
+    #                    help = 'Id of control dataset (to perform quality control and to merge them)')    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    parser.add_argument('--control_cov', action='store', dest="ControlCoverage_filepath", default='', required=False,
+                        help='Path to TSV table with control data set amplicons coverage.')
+    parser.add_argument('--clean_control', action='store_true', dest='control_is_clean', default = False, required=False,
+                        help='Set this flag if a control data set is free of CNVs.')
+    ## Output
+    parser.add_argument('--out_prfx', action='store', dest='out_prfx', default='CONVector_result', required=False,
+                        help='Output file name prefix; default "CONVector_result".')
+    parser.add_argument('--out_dir', action='store', dest='out_dir', required=True,
+                        help='Path to output directory.')
+    ## Algorithm parameters
+    parser.add_argument('--ampls_frac', action='store', dest='amplicons_frac', default='0.8', required=False,
+                        help='Fraction of amplicons which will be taken into account when determining if a sample has normal coverage; default 0.8.')
+    parser.add_argument('--min_corr', action='store', dest='min_corr', default='0.7', required=False,
+                        help='Minimum correlation threshold for CNV calling; default 0.7.')
+    parser.add_argument('--mode', '-m', action='store', dest='mode', default='normal', required=False,
+                        help='CNV calling mode: "hard", "normal", "soft"; default "normal".')
+
+    # Import arguments from the arguments parser
     args = parser.parse_args()
-    bam_folder = args.directory
-    bed_file = args.bed
-    bam_folder = os.path.abspath(bam_folder)
-    bed_file = os.path.abspath(bed_file)
-    percent = args.QCpercent
-    min_cor = args.minimum_correlation
-    output_folder = args.output_folder
-    clean_control = args.control_dataset_free_of_CNVs
-
-
+    ## Input
+    amplicons_filepath = args.amplicons_filepath
+    bam_dirpath = args.bam_dirpath
+    ControlCoverage_filepath = args.ControlCoverage_filepath
+    control_is_clean = args.control_is_clean
+    ## Output
+    out_prfx = args.out_prfx
+    out_dir = args.out_dir
+    ## Algorithm parameters
+    amplicons_frac = args.amplicons_frac
+    min_corr = args.min_corr
     mode = args.mode
-    id_of_run = args.id_of_run
-    if id_of_run == "result":
-        id_of_run += bam_folder
-    control_dataset = id_of_run
-    if args.control_dataset:
-        control_dataset = args.control_dataset
 
-    logger.info((" ").join(["Task with id", id_of_run, "started"]))
+    bam_dirpath = os.path.abspath(bam_dirpath)
+    
+    #if out_prfx == "CONVector_result":
+    #    out_prfx += bam_dirpath
+    #ControlCoverage_filepath = out_prfx
+    #if args.ControlCoverage_filepath:
+    #    ControlCoverage_filepath = args.ControlCoverage_filepath
+
+    logger.info((" ").join(["Task with id", out_prfx, "started"]))
     quant_dict = {}
     quant_0995, quant_099, quant_098, quant_095 = get_quantiles()
     if mode == "hard":
@@ -142,23 +147,24 @@ def main():
         f = open('tmp_references.txt', 'w')
         f.close()
 
-    if args.directory:
-        get_coverages(bam_folder, bed_file, id_of_run, output_folder)
-    output_file_name = id_of_run
-    if not id_of_run == control_dataset:
-        output_file_name = id_of_run + "_" + control_dataset
-        if float(percent) < 0.9:
-            percent = "0.9"
+    amplicons_filepath = os.path.abspath(amplicons_filepath)
+    if args.bam_dirpath:
+        get_coverages(bam_dirpath, amplicons_filepath, out_prfx, out_dir)
+    output_file_name = out_prfx
+    if not out_prfx == ControlCoverage_filepath:
+        output_file_name = out_prfx + "_" + ControlCoverage_filepath
+        if float(amplicons_frac) < 0.9:
+            amplicons_frac = "0.9"
             logger.info("Too low quality control for merging test and control datasets. Value at least 0.9 should be used.")
 
-    string_to_cmd = ("").join(["python2 qc.py ", bed_file, " ./result/", id_of_run, ".xls ./result/", control_dataset, ".xls ",  output_file_name, " ", percent])
+    string_to_cmd = ("").join(["python2 qc.py ", amplicons_filepath, " ./result/", out_prfx, ".xls ./result/", ControlCoverage_filepath, ".xls ",  output_file_name, " ", amplicons_frac])
     os.system(string_to_cmd)
 
-    get_tmp_del_files(bed_file, quant_dict_del, quant_dict_dup, output_file_name, min_cor, clean_control)
-    get_results(output_file_name, output_folder)
-    string_to_cmd = (" ").join(["./visualisation.R", bed_file, "./visualisation", id_of_run])
+    get_tmp_del_files(amplicons_filepath, quant_dict_del, quant_dict_dup, output_file_name, min_corr, control_is_clean)
+    get_results(output_file_name, out_dir)
+    string_to_cmd = (" ").join(["./visualisation.R", amplicons_filepath, "./visualisation", out_prfx])
     os.system(string_to_cmd)
-    logger.info(" ".join(["Task with id", id_of_run, "finished! ;-)"]))
+    logger.info(" ".join(["Task with id", out_prfx, "finished! ;-)"]))
 
 
 if __name__ == "__main__":
