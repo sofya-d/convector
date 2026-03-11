@@ -17,43 +17,41 @@ def get_coverages(bam_dirpath, amplicons_filepath, out_prfx, out_dir):
     string_to_cmd = ("").join(["python2 chimeric_solver.py --dir ", bam_dirpath, " --bed ", amplicons_filepath, " --resFile ", out_prfx, ".xls", " --conv --out ", out_dir])
     os.system(string_to_cmd)
 
-def get_quantiles():
-    """Reads files with hard coded quantiles and gets quantiles, returns dictionaries, {degree of freedom : quantile} """
-    quant_0995 = {}
-    quant_099 = {}
-    quant_098 = {}
-    quant_095 = {}
-    with open(os.path.abspath("./quantiles/quantiles0995.txt")) as f:
-        table = f.readline()
-        array_of_quantiles = table.split()
-        for i in xrange(2, 500):
-            quant_0995[i] = float(array_of_quantiles[i - 2])
-    with open(os.path.abspath("./quantiles/quantiles099.txt")) as f:
-        table = f.readline()
-        array_of_quantiles = table.split()
-        for i in xrange(2, 500):
-            quant_099[i] = float(array_of_quantiles[i - 2])
-    with open(os.path.abspath("./quantiles/quantiles098.txt")) as f:
-        table = f.readline()
-        array_of_quantiles = table.split()
-        for i in xrange(2, 500):
-            quant_098[i] = float(array_of_quantiles[i - 2])
-    with open(os.path.abspath("./quantiles/quantiles095.txt")) as f:
-        table = f.readline()
-        array_of_quantiles = table.split()
-        for i in xrange(2, 500):
-            quant_095[i] = float(array_of_quantiles[i - 2])
 
-    return quant_0995, quant_099, quant_098, quant_095
+def get_quantiles(mode, CONVector_dirpath):
+    """
+    Reads files with hard-coded quantiles and gets quantiles, returns dictionaries, {degree of freedom : quantile}.
+    """
+    # Choose quantile based on mode.
+    if mode == 'hard':
+        quantile = '099'
+    elif mode == 'normal':
+        quantile = '098'
+    elif mode == 'soft':
+        quantile = '095'
+    
+    quantiles_dirpath = os.path.join(CONVector_dirpath, 'quantiles')
+    quantiles_file = 'quantiles{}.txt'.format(quantile)
+    quantiles_filepath = os.path.join(quantiles_dirpath, quantiles_file)
 
-def get_tmp_del_files(amplicons_filepath, quant_dict_del, quant_dict_dup, out_prfx, min_corr, mode):
+    quantiles_dict = {}
+    with open(quantiles_filepath) as handle:
+        quantiles_table = handle.readline()
+        quantiles_array = quantiles_table.split()
+        for i in xrange(2, 500):
+            quantiles_dict[i] = float(quantiles_array[i - 2])
+
+    return quantiles_dict
+
+
+def get_tmp_del_files(amplicons_filepath, del_quantiles_dict, dup_quantiles_dict, out_prfx, min_corr, mode):
     """Launch CONVector using predefined parameters, output - files with CNVs
     (outputId_of_task_before_LDA and outputId_of_task_after_LDA)"""
     num_of_samples = 0
     with open("./result/" + out_prfx + "_qc.xls") as f:
         num_of_samples = len(f.readline().split()) - 2
-    x = str(quant_dict_del[num_of_samples])
-    y = str(quant_dict_dup[num_of_samples])
+    x = str(del_quantiles_dict[num_of_samples])
+    y = str(dup_quantiles_dict[num_of_samples])
     string_to_cmd = "javac ./deletionsAnalysis/Main.java"
     os.system(string_to_cmd)
     string_to_cmd = ("").join(["java  deletionsAnalysis/Main ", " -d ./result/", out_prfx,
@@ -117,25 +115,14 @@ def main():
     amplicons_frac = args.amplicons_frac
     min_corr = args.min_corr
     mode = args.mode
-
-    bam_dirpath = os.path.abspath(bam_dirpath)
     
-    #if out_prfx == "CONVector_result":
-    #    out_prfx += bam_dirpath
-    #ControlCoverage_filepath = out_prfx
-    #if args.ControlCoverage_filepath:
-    #    ControlCoverage_filepath = args.ControlCoverage_filepath
+    logger.info('Task with ID {} started'.format(out_prfx))
 
-    logger.info((" ").join(["Task with id", out_prfx, "started"]))
-    quant_dict = {}
-    quant_0995, quant_099, quant_098, quant_095 = get_quantiles()
-    if mode == "hard":
-        quant_dict_del = quant_099
-    elif mode == "normal":
-        quant_dict_del = quant_098
-    elif mode == "soft":
-        quant_dict_del = quant_095
-    quant_dict_dup = quant_095
+    CONVector_filepath = os.path.abspath(__file__)
+    CONVector_dirpath = os.path.dirname(CONVector_filepath)
+
+    del_quantiles_dict = get_quantiles(mode, CONVector_dirpath)
+    dup_quantiles_dict = get_quantiles('soft', CONVector_dirpath)
 
     if not os.path.exists("tmp_chimeras.txt"):
         f = open('tmp_chimeras.txt', 'w')
@@ -147,6 +134,7 @@ def main():
         f = open('tmp_references.txt', 'w')
         f.close()
 
+    bam_dirpath = os.path.abspath(bam_dirpath)
     amplicons_filepath = os.path.abspath(amplicons_filepath)
     if args.bam_dirpath:
         get_coverages(bam_dirpath, amplicons_filepath, out_prfx, out_dir)
@@ -160,7 +148,7 @@ def main():
     string_to_cmd = ("").join(["python2 qc.py ", amplicons_filepath, " ./result/", out_prfx, ".xls ./result/", ControlCoverage_filepath, ".xls ",  output_file_name, " ", amplicons_frac])
     os.system(string_to_cmd)
 
-    get_tmp_del_files(amplicons_filepath, quant_dict_del, quant_dict_dup, output_file_name, min_corr, control_is_clean)
+    get_tmp_del_files(amplicons_filepath, del_quantiles_dict, dup_quantiles_dict, output_file_name, min_corr, control_is_clean)
     get_results(output_file_name, out_dir)
     string_to_cmd = (" ").join(["./visualisation.R", amplicons_filepath, "./visualisation", out_prfx])
     os.system(string_to_cmd)
