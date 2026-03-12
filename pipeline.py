@@ -12,11 +12,6 @@ loginipath = ('logging_config.ini')
 fileConfig(loginipath, defaults={'logfilename': 'pipeline.log'})
 logger = logging.getLogger('CONVector_logger')
 
-def get_coverages(bam_dirpath, amplicons_filepath, out_prfx, out_dir):
-    """Launch chimeric_solver and counts coverages. Save the output .xls file to the directory ./result by default"""
-    string_to_cmd = ("").join(["python2 chimeric_solver.py --dir ", bam_dirpath, " --bed ", amplicons_filepath, " --resFile ", out_prfx, ".xls", " --conv --out ", out_dir])
-    os.system(string_to_cmd)
-
 
 def get_quantiles(mode, CONVector_dirpath):
     """
@@ -62,7 +57,7 @@ def get_tmp_del_files(amplicons_filepath, del_quantiles_dict, dup_quantiles_dict
     logger.warn(string_to_cmd)
     os.system(string_to_cmd)
 
-def get_results(out_prfx, out_dir):
+def get_results(out_prfx, out_dirpath):
     """Launch finalizer and creates a report about CNVs, .xls file with name
     result_before_LDA_id_of_task.xls and result_after_LDA_id_of_task.xls"""
     string_to_get_final_results_unsupervised = ("").join(["python2 finalizer.py -i output", out_prfx, ".xls -o result_before_LDA_", out_prfx, ".xls"])
@@ -91,7 +86,7 @@ def main():
     ## Output
     parser.add_argument('--out_prfx', action='store', dest='out_prfx', default='CONVector_result', required=False,
                         help='Output file name prefix; default "CONVector_result".')
-    parser.add_argument('--out_dir', action='store', dest='out_dir', required=True,
+    parser.add_argument('--out_dir', action='store', dest='out_dirpath', required=True,
                         help='Path to output directory.')
     ## Algorithm parameters
     parser.add_argument('--ampls_frac', action='store', dest='amplicons_frac', default='0.8', required=False,
@@ -110,7 +105,7 @@ def main():
     control_is_clean = args.control_is_clean
     ## Output
     out_prfx = args.out_prfx
-    out_dir = args.out_dir
+    out_dirpath = args.out_dirpath
     ## Algorithm parameters
     amplicons_frac = args.amplicons_frac
     min_corr = args.min_corr
@@ -124,32 +119,47 @@ def main():
     del_quantiles_dict = get_quantiles(mode, CONVector_dirpath)
     dup_quantiles_dict = get_quantiles('soft', CONVector_dirpath)
 
-    if not os.path.exists("tmp_chimeras.txt"):
-        f = open('tmp_chimeras.txt', 'w')
+    out_dirpath = os.path.abspath(out_dirpath)
+    tmp_dirpath = os.path.join(out_dirpath, 'tmp')
+    if not os.path.exists(tmp_dirpath):
+        os.makedirs(tmp_dirpath)
+    tmpChimeras_filepath = os.path.join(tmp_dirpath, 'tmp_chimeras.txt')
+    tmpOutput_filepath = os.path.join(tmp_dirpath, 'tmp_output.txt')
+    tmpReferences_filepath = os.path.join(tmp_dirpath, 'tmp_references.txt')
+    if not os.path.exists(tmpChimeras_filepath):
+        f = open(tmpChimeras_filepath, 'w')
         f.close()
-    if not os.path.exists("tmp_output.txt"):
-        f = open('tmp_output.txt', 'w')
+    if not os.path.exists(tmpOutput_filepath):
+        f = open(tmpOutput_filepath, 'w')
         f.close()
-    if not os.path.exists("tmp_references.txt"):
-        f = open('tmp_references.txt', 'w')
+    if not os.path.exists(tmpReferences_filepath):
+        f = open(tmpReferences_filepath, 'w')
         f.close()
 
     bam_dirpath = os.path.abspath(bam_dirpath)
     amplicons_filepath = os.path.abspath(amplicons_filepath)
-    if args.bam_dirpath:
-        get_coverages(bam_dirpath, amplicons_filepath, out_prfx, out_dir)
-    output_file_name = out_prfx
-    if not out_prfx == ControlCoverage_filepath:
-        output_file_name = out_prfx + "_" + ControlCoverage_filepath
-        if float(amplicons_frac) < 0.9:
-            amplicons_frac = "0.9"
-            logger.info("Too low quality control for merging test and control datasets. Value at least 0.9 should be used.")
+
+    # Calculate amplicon coverages. (Run chimeric_solver.py).
+    chimeric_solver_filepath = os.path.join(CONVector_dirpath, 'chimeric_solver.py')
+    chimeric_solver_command = 'python2 {} --convert --ampls {} --bam_dir {} --out_prfx {} --out_dir {}'.format(chimeric_solver_filepath,
+                                                                                                               amplicons_filepath,
+                                                                                                               bam_dirpath,
+                                                                                                               out_prfx,
+                                                                                                               out_dirpath)
+    os.system(chimeric_solver_command)
+    
+    #output_file_name = out_prfx
+    #if not out_prfx == ControlCoverage_filepath:
+    #    output_file_name = out_prfx + "_" + ControlCoverage_filepath
+    #    if float(amplicons_frac) < 0.9:
+    #        amplicons_frac = "0.9"
+    #        logger.info("Too low quality control for merging test and control datasets. Value at least 0.9 should be used.")
 
     string_to_cmd = ("").join(["python2 qc.py ", amplicons_filepath, " ./result/", out_prfx, ".xls ./result/", ControlCoverage_filepath, ".xls ",  output_file_name, " ", amplicons_frac])
     os.system(string_to_cmd)
 
     get_tmp_del_files(amplicons_filepath, del_quantiles_dict, dup_quantiles_dict, output_file_name, min_corr, control_is_clean)
-    get_results(output_file_name, out_dir)
+    get_results(output_file_name, out_dirpath)
     string_to_cmd = (" ").join(["./visualisation.R", amplicons_filepath, "./visualisation", out_prfx])
     os.system(string_to_cmd)
     logger.info(" ".join(["Task with id", out_prfx, "finished! ;-)"]))
