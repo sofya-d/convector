@@ -195,45 +195,18 @@ def bam_to_sam(bam_dirpath, sam_dirpath):
 
 ### parse_bed_file() ========================================================================================================================================================================
 
-def parse_bed_file(bam_dirpath, filename):
+def parse_bed_file(amplicons_filepath):
     """
-
-    :param bam_dirpath: path to directory (absolute or relative)
-    :param filename: name of file with .bed file
-    :return: panel of amplicons and counter of .bed files in folder with .bam files
+    :return: panel of amplicons
     """
-    bed_file = ""
-    path_to_bed = ""
-    if filename == "":
-        counter_of_beds = 0
-        bam_dirpath = os.path.abspath(bam_dirpath)
-        for filename in os.listdir(bam_dirpath):
-            if filename.endswith((".bed",".BED")):
-                path_to_bed = os.path.join(bam_dirpath, filename)
-                counter_of_beds += 1
-                if counter_of_beds > 1:
-                    logger.warn("Too much BED files. chimeric_solver call is ambiguous.")
-                    return None, 0
-        if counter_of_beds == 0:
-            logger.warn("There is no BED file in directory.")
-            return None, 0
-    else:
-        if not filename.endswith((".bed",".BED")):
-            logger.warn(bed_file)
-            logger.warn("Your .bed file should have .bed file extenstion.")
-            return None, 0
-        else:
-            counter_of_beds = 1
-            path_to_bed = os.path.abspath(filename)
-
     panel_of_amplicons = defaultdict(list)
-    with open(path_to_bed) as bed_f:
+    with open(amplicons_filepath) as bed_f:
         bed_f.readline()
         for line in bed_f:
             tmp_amplicon = Amplicon(line)
             panel_of_amplicons[tmp_amplicon.chromosome].append(tmp_amplicon)
 
-    return panel_of_amplicons, counter_of_beds
+    return panel_of_amplicons
 
 ### parse_bed_file() ========================================================================================================================================================================
 
@@ -678,7 +651,12 @@ def calculate_corrected_reads(out_dirpath, sam_dirpath, panel_of_amplicons, min_
                                              panel_of_amplicons, percentage_mode_on)
 
         # Write chimeras longer than 40 bases from chimeras_list to tmp_chimeras.txt.
-        with open("tmp_chimeras.txt", "wb") as f:
+        out_dirpath = os.path.abspath(out_dirpath)
+        tmp_dirpath = os.path.join(out_dirpath, 'tmp')
+        if not os.path.exists(tmp_dirpath):
+            os.makedirs(tmp_dirpath)
+        tmpChimeras_filepath = os.path.join(tmp_dirpath, 'tmp_chimeras.txt')
+        with open(tmpChimeras_filepath, "wb") as f:
             for chimera in chimeras_list:
                 if len(chimera) > 40:
                     f.write(chimera + "\n")
@@ -686,8 +664,9 @@ def calculate_corrected_reads(out_dirpath, sam_dirpath, panel_of_amplicons, min_
         # Write consensus amplicon sequences to tmp_references.txt, with homopolymers of length longer than 4 removed preliminary.
         # Add consensus amplicon sequences to list_of_ampls_to_search_chimera_in.
         # Both procedures are performed on consensus amplicon sequences if they are not emply strings.
+        tmpReferences_filepath = os.path.join(tmp_dirpath, 'tmp_references.txt')
         list_of_ampls_to_search_chimera_in = []
-        with open("tmp_references.txt", "wb") as f:
+        with open(tmpReferences_filepath, 'wb') as f:
             for chr in canonical_strings_for_each_amplicon_with_primers:
                 for ampl in canonical_strings_for_each_amplicon_with_primers[chr]:
                     if not canonical_strings_for_each_amplicon_with_primers[chr][ampl] == "":
@@ -702,8 +681,12 @@ def calculate_corrected_reads(out_dirpath, sam_dirpath, panel_of_amplicons, min_
         # tmp_output.txt is not created in chimeric_solver.py.
         # It seems tmp_output contains number of chimeras aligned to an amplicon (chimeric_increase variable).
         # It seems tmp_output.txt contains chimeric_increase for each amplicon.
+        tmpOutput_filepath = os.path.join(tmp_dirpath, 'tmp_output.txt')
+        if not os.path.exists(tmpOutput_filepath):
+            f = open(tmpOutput_filepath, 'w')
+            f.close()
         counter = 0
-        with open("tmp_output.txt", "r") as f:
+        with open(tmpOutput_filepath, "r") as f:
             for ampl in list_of_ampls_to_search_chimera_in:
                 chimeric_increase = 0
                 try:
@@ -783,13 +766,7 @@ Needs input directory with bam files and file with coordinates of amplicons.""")
     num_of_reads = (args.min_number_of_reads)
     amplicons_filepath = (args.amplicons_filepath)
 
-    panel_of_amplicons, counter_of_bed = parse_bed_file(bam_dirpath, amplicons_filepath)
-
-    if not counter_of_bed == 1:
-        logger.warn("The chimeric_solver can not be started because the .bed file was not found. Quit.")
-        sys.exit()
-
-    pool_info = ""
+    panel_of_amplicons = parse_bed_file(amplicons_filepath)
 
     if not args.additional_file == None:
         additional_info(panel_of_amplicons, args.additional_file)
