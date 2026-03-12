@@ -149,9 +149,9 @@ def additional_info(panel_of_amplicons, add_file):
 
 ### bam_to_sam() ============================================================================================================================================================================
 
-def bam_to_sam(directory, sam_dirpath):
+def bam_to_sam(bam_dirpath, sam_dirpath):
     """
-    :param directory: path to directory with .bam files
+    :param bam_dirpath: path to directory with .bam files
     :param sam_dirpath: output directory for .sam files
     :return:
     """
@@ -167,7 +167,7 @@ def bam_to_sam(directory, sam_dirpath):
             except Exception as e:
                 logger.warn(str(e))
     number_of_bam_files = 0
-    for filename in os.listdir(directory):
+    for filename in os.listdir(bam_dirpath):
         if filename.endswith((".bam",".BAM")) and not filename.startswith("nomatch"):
             number_of_bam_files += 1
 
@@ -176,11 +176,11 @@ def bam_to_sam(directory, sam_dirpath):
         sys.exit()
 
     counter_of_progress = 0
-    for filename in os.listdir(directory):
+    for filename in os.listdir(bam_dirpath):
         tmp_string = ""
         if filename.endswith((".bam",".BAM"))  and not filename.startswith("nomatch"):
             out_file_name = filename[:-4] + ".sam"
-            tmp_string = ("samtools view -h " + os.path.join(directory,
+            tmp_string = ("samtools view -h " + os.path.join(bam_dirpath,
                           filename) + " > " +
                           os.path.join(sam_dirpath, out_file_name))
             os.system(tmp_string)
@@ -195,10 +195,10 @@ def bam_to_sam(directory, sam_dirpath):
 
 ### parse_bed_file() ========================================================================================================================================================================
 
-def parse_bed_file(directory, filename):
+def parse_bed_file(bam_dirpath, filename):
     """
 
-    :param directory: path to directory (absolute or relative)
+    :param bam_dirpath: path to directory (absolute or relative)
     :param filename: name of file with .bed file
     :return: panel of amplicons and counter of .bed files in folder with .bam files
     """
@@ -206,10 +206,10 @@ def parse_bed_file(directory, filename):
     path_to_bed = ""
     if filename == "":
         counter_of_beds = 0
-        directory = os.path.abspath(directory)
-        for filename in os.listdir(directory):
+        bam_dirpath = os.path.abspath(bam_dirpath)
+        for filename in os.listdir(bam_dirpath):
             if filename.endswith((".bed",".BED")):
-                path_to_bed = os.path.join(directory, filename)
+                path_to_bed = os.path.join(bam_dirpath, filename)
                 counter_of_beds += 1
                 if counter_of_beds > 1:
                     logger.warn("Too much BED files. chimeric_solver call is ambiguous.")
@@ -553,9 +553,9 @@ def rev_compl(string):
 
 
 ## calculate_corrected_reads() --------------------------------------------------------------------------------------------------------------------------------------------------------------
-def calculate_corrected_reads(outputdir, sam_dirpath, panel_of_amplicons, min_length, mq,
+def calculate_corrected_reads(out_dirpath, sam_dirpath, panel_of_amplicons, min_length, mq,
                               percentage_mode_on, clip_cutoff, cutoff, num_of_reads,
-                              result_file):
+                              out_prfx):
     """
     We calculate the coverages of each amplicon with our metrics of quality.
     Percentage mode / BP mode - different metrics of intersection.
@@ -731,7 +731,7 @@ def calculate_corrected_reads(outputdir, sam_dirpath, panel_of_amplicons, min_le
         logger.info(" ".join(["AMPL", str(key.ID), str(key.chromosome), "HAS THIS AMOUNT OF CHIMERAS II TYPE", str(dict_to_know_what_amplicons_are_more_chimeric[key])]))
 
     # Write amplicon coverage table.
-    result_filepath = outputdir + '/' + result_file
+    result_filepath = out_dirpath + '/' + out_prfx
     with open(result_filepath, "wb") as output_file:
             output_file.write(top_string + "\n")
             for key in panel_of_amplicons.iterkeys():
@@ -750,18 +750,18 @@ def main():
     parser = argparse.ArgumentParser(description="""Convert everything from BAM to SAM.
 Then count corrected_reads.
 Needs input directory with bam files and file with coordinates of amplicons.""")
-    parser.add_argument('--dir','-d', action="store", dest = "directory",
-                        required=True,
-                        help = 'Directory with 1 BED file and BAM files.')
-    parser.add_argument('--bed','-b', action="store", dest = "bed",
-                        default = "",
-                        help = 'BED file (if not in directory with dataset)')
-    parser.add_argument('--out','-o', action="store", dest = "outputdir",
-                        default = "output_with_SAMs",
-                        help = 'Output directory for all SAM files')
-    parser.add_argument('--len','-l', action="store", dest="len_threshold",
-                        type=int,
-                        default="1")
+    # Input
+    parser.add_argument('--ampls', '-a', action='store', dest='amplicons_filepath', required=True,
+                        help='Path to TSV table with amplicons coordinates.')
+    parser.add_argument('--bam_dir', action='store', dest='bam_dirpath', required=True,
+                        help = 'Path to directory with input BAM files.')
+    parser.add_argument('--out_prfx', action='store', dest='out_prfx', default='CONVector_result', required=False,
+                        help='Output file name prefix; default "CONVector_result".')
+    # Output
+    parser.add_argument('--out_dir', action='store', dest='out_dirpath', required=True,
+                        help='Path to output directory.')
+    # Algorithm parameters
+    parser.add_argument('--len','-l', action="store", dest="len_threshold", type=int, default="1")
     # in form "probability mapping position is wrong"
     parser.add_argument('--mq','-m', action="store", dest="MQ", type=float, default="0.9")
     parser.add_argument('--mode','-md', action="store_true", dest="mode", default=False)
@@ -771,21 +771,19 @@ Needs input directory with bam files and file with coordinates of amplicons.""")
     parser.add_argument('--numOfReads','-n',action="store", dest="min_number_of_reads", type=int, default=15000)
     parser.add_argument('--addInfo','-i',action="store", dest="additional_file", type=str, default=None)
 
-    parser.add_argument('--resFile','-r',action="store", dest="result_file", type=str, default="result.xls")
-
     args = parser.parse_args()
     # .bam files which names starts with "nomatch" will not be considered!
-    directory = args.directory
-    outputdir = args.outputdir
+    bam_dirpath = args.bam_dirpath
+    out_dirpath = args.out_dirpath
 
     len_threshold = (args.len_threshold)
     mq = (args.MQ)
     cutoff = (args.overlap)
     clip_cutoff = (args.clip_amount)
     num_of_reads = (args.min_number_of_reads)
-    bed_file = (args.bed)
+    amplicons_filepath = (args.amplicons_filepath)
 
-    panel_of_amplicons, counter_of_bed = parse_bed_file(directory, bed_file)
+    panel_of_amplicons, counter_of_bed = parse_bed_file(bam_dirpath, amplicons_filepath)
 
     if not counter_of_bed == 1:
         logger.warn("The chimeric_solver can not be started because the .bed file was not found. Quit.")
@@ -797,8 +795,8 @@ Needs input directory with bam files and file with coordinates of amplicons.""")
         additional_info(panel_of_amplicons, args.additional_file)
 
     if args.converter:
-        sam_dirpath = outputdir + '/sam'
-        bam_to_sam(directory, sam_dirpath)
+        sam_dirpath = out_dirpath + '/sam'
+        bam_to_sam(bam_dirpath, sam_dirpath)
 
     # two modes - percentage (coverage defined by the % of amplicon
     # covered with the read or
@@ -806,12 +804,12 @@ Needs input directory with bam files and file with coordinates of amplicons.""")
 
     percentage_mode_on = args.mode
 
-    result_file = args.result_file
+    out_prfx = args.out_prfx
 
-    calculate_corrected_reads(outputdir, sam_dirpath, panel_of_amplicons,
+    calculate_corrected_reads(out_dirpath, sam_dirpath, panel_of_amplicons,
                               len_threshold, mq, percentage_mode_on,
                               clip_cutoff, cutoff, num_of_reads,
-                              result_file)
+                              out_prfx)
 
 ### main() ==================================================================================================================================================================================
 
