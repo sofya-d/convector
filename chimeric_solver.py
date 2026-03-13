@@ -535,8 +535,12 @@ def calculate_corrected_reads(out_dirpath, sam_dirpath, panel_of_amplicons, min_
     Output: file with samples and their coverages in each amplicon.
     """
     # Compile Java code
-    string_to_cmd = "javac ./parseq/chimeric_solver/Main.java"
-    os.system(string_to_cmd)
+    CONVector_filepath = os.path.abspath(__file__)
+    CONVector_dirpath = os.path.dirname(CONVector_filepath)
+    JavaChimericSolver_dirpath = os.path.join(CONVector_dirpath, 'chimeric_solver')
+    JavaChimericSolver_filepath = os.path.join(JavaChimericSolver_dirpath, 'Main.java')
+    CompileJava_command = 'javac {}'.format(JavaChimericSolver_filepath)
+    os.system(CompileJava_command)
 
     # Convert MAPQ (mapping quality)
     if mq > 0:
@@ -675,8 +679,9 @@ def calculate_corrected_reads(out_dirpath, sam_dirpath, panel_of_amplicons, min_
                         list_of_ampls_to_search_chimera_in.append(ampl)
 
         # Execute some Java script related to chimeric_solver.py.
-        string_to_cmd = ("").join(["java parseq/chimeric_solver/Main" ])
-        os.system(string_to_cmd)
+        JavaChimericSolver_filepath = os.path.join(JavaChimericSolver_dirpath, 'Main')
+        RunJava_command = 'java {}'.format(JavaChimericSolver_filepath)
+        os.system(RunJava_command)
 
         # tmp_output.txt is not created in chimeric_solver.py.
         # It seems tmp_output contains number of chimeras aligned to an amplicon (chimeric_increase variable).
