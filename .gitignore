@@ -1,7 +1,7 @@
 .ipynb_checkpoints/
+chimeric_solver/*.class
 deletionsAnalysis/*.class
 output_with_SAMs/
-parseq/
 result/
 *.log
 *.pyc
