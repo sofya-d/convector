@@ -528,7 +528,7 @@ def rev_compl(string):
 ## calculate_corrected_reads() --------------------------------------------------------------------------------------------------------------------------------------------------------------
 def calculate_corrected_reads(out_dirpath, sam_dirpath, panel_of_amplicons, min_length, mq,
                               percentage_mode_on, clip_cutoff, cutoff, num_of_reads,
-                              out_prfx):
+                              out_file):
     """
     We calculate the coverages of each amplicon with our metrics of quality.
     Percentage mode / BP mode - different metrics of intersection.
@@ -715,7 +715,7 @@ def calculate_corrected_reads(out_dirpath, sam_dirpath, panel_of_amplicons, min_
         logger.info(" ".join(["AMPL", str(key.ID), str(key.chromosome), "HAS THIS AMOUNT OF CHIMERAS II TYPE", str(dict_to_know_what_amplicons_are_more_chimeric[key])]))
 
     # Write amplicon coverage table.
-    result_filepath = out_dirpath + '/' + out_prfx
+    result_filepath = out_dirpath + '/' + out_file
     with open(result_filepath, "wb") as output_file:
             output_file.write(top_string + "\n")
             for key in panel_of_amplicons.iterkeys():
@@ -739,8 +739,8 @@ Needs input directory with bam files and file with coordinates of amplicons.""")
                         help='Path to TSV table with amplicons coordinates.')
     parser.add_argument('--bam_dir', action='store', dest='bam_dirpath', required=True,
                         help = 'Path to directory with input BAM files.')
-    parser.add_argument('--out_prfx', action='store', dest='out_prfx', default='CONVector_result', required=False,
-                        help='Output file name prefix; default "CONVector_result".')
+    parser.add_argument('--out_file', action='store', dest='out_file', default='CONVector_result', required=False,
+                        help='Output file for amplicon coverage table.')
     # Output
     parser.add_argument('--out_dir', action='store', dest='out_dirpath', required=True,
                         help='Path to output directory.')
@@ -782,12 +782,12 @@ Needs input directory with bam files and file with coordinates of amplicons.""")
 
     percentage_mode_on = args.mode
 
-    out_prfx = args.out_prfx
+    out_file = args.out_file
 
     calculate_corrected_reads(out_dirpath, sam_dirpath, panel_of_amplicons,
                               len_threshold, mq, percentage_mode_on,
                               clip_cutoff, cutoff, num_of_reads,
-                              out_prfx)
+                              out_file)
 
 ### main() ==================================================================================================================================================================================
 

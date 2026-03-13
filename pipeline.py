@@ -141,10 +141,11 @@ def main():
 
     # Calculate amplicon coverages. (Run chimeric_solver.py).
     chimeric_solver_filepath = os.path.join(CONVector_dirpath, 'chimeric_solver.py')
-    chimeric_solver_command = 'python2 {} --convert --ampls {} --bam_dir {} --out_prfx {} --out_dir {}'.format(chimeric_solver_filepath,
+    coverage_file = '{}_AmplCov.tsv'.format(out_prfx)
+    chimeric_solver_command = 'python2 {} --convert --ampls {} --bam_dir {} --out_file {} --out_dir {}'.format(chimeric_solver_filepath,
                                                                                                                amplicons_filepath,
                                                                                                                bam_dirpath,
-                                                                                                               out_prfx,
+                                                                                                               coverage_file,
                                                                                                                out_dirpath)
     os.system(chimeric_solver_command)
     
@@ -155,8 +156,11 @@ def main():
     #        amplicons_frac = "0.9"
     #        logger.info("Too low quality control for merging test and control datasets. Value at least 0.9 should be used.")
 
-    string_to_cmd = ("").join(["python2 qc.py ", amplicons_filepath, " ./result/", out_prfx, ".xls ./result/", ControlCoverage_filepath, ".xls ",  output_file_name, " ", amplicons_frac])
-    os.system(string_to_cmd)
+    qc_filepath = os.path.join(CONVector_dirpath, 'qc.py')
+    coverage_filepath = os.path.join(out_dirpath, coverage_file)
+    qc_command = 'python2 {} --ampls {} --cov {} --control_cov {} --out_prfx {} --out_dir {} --ampls_frac {}'.format(qc_filepath, amplicons_filepath, coverage_filepath,
+                                                                                                                     ControlCoverage_file, out_prfx, out_dirpath, amplicons_frac)
+    os.system(qc_command)
 
     get_tmp_del_files(amplicons_filepath, del_quantiles_dict, dup_quantiles_dict, output_file_name, min_corr, control_is_clean)
     get_results(output_file_name, out_dirpath)
