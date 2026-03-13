@@ -534,14 +534,6 @@ def calculate_corrected_reads(out_dirpath, sam_dirpath, panel_of_amplicons, min_
     Percentage mode / BP mode - different metrics of intersection.
     Output: file with samples and their coverages in each amplicon.
     """
-    # Compile Java code
-    CONVector_filepath = os.path.abspath(__file__)
-    CONVector_dirpath = os.path.dirname(CONVector_filepath)
-    JavaChimericSolver_dirpath = os.path.join(CONVector_dirpath, 'chimeric_solver')
-    JavaChimericSolver_filepath = os.path.join(JavaChimericSolver_dirpath, 'Main.java')
-    CompileJava_command = 'javac {}'.format(JavaChimericSolver_filepath)
-    os.system(CompileJava_command)
-
     # Convert MAPQ (mapping quality)
     if mq > 0:
         score_of_mq = floor(-10 * log10(mq)) # prob -> score
@@ -679,14 +671,18 @@ def calculate_corrected_reads(out_dirpath, sam_dirpath, panel_of_amplicons, min_
                         list_of_ampls_to_search_chimera_in.append(ampl)
 
         # Execute some Java script related to chimeric_solver.py.
-        JavaChimericSolver_filepath = os.path.join(JavaChimericSolver_dirpath, 'Main')
-        RunJava_command = 'java {}'.format(JavaChimericSolver_filepath)
+        CONVector_filepath = os.path.abspath(__file__)
+        CONVector_dirpath = os.path.dirname(CONVector_filepath)
+        JavaChimericSolver_classname = 'chimeric_solver.Main'
+        tmpOutput_filepath = os.path.join(tmp_dirpath, 'tmp_output.txt')
+        JavaChimericSolver_log_filepath = os.path.join(out_dirpath, 'chimeric_solver_realignment.log')
+        RunJava_command = 'java --class-path {} {} {} {} {} > {} 2>&1'.format(CONVector_dirpath, JavaChimericSolver_classname, tmpChimeras_filepath, tmpReferences_filepath,
+                                                                             tmpOutput_filepath, JavaChimericSolver_log_filepath)
         os.system(RunJava_command)
 
         # tmp_output.txt is not created in chimeric_solver.py.
         # It seems tmp_output contains number of chimeras aligned to an amplicon (chimeric_increase variable).
         # It seems tmp_output.txt contains chimeric_increase for each amplicon.
-        tmpOutput_filepath = os.path.join(tmp_dirpath, 'tmp_output.txt')
         if not os.path.exists(tmpOutput_filepath):
             f = open(tmpOutput_filepath, 'w')
             f.close()
