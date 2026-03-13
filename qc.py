@@ -1,6 +1,7 @@
 #!/usr/bin/env python2
 __author__ = 'german'
 
+import argparse
 import chimeric_solver
 import sys
 from collections import defaultdict
@@ -204,19 +205,19 @@ def form_list_of_qc_negative(list_of_normal_or_not_dicts, samples_to_test_qc):
 
 # output_result_file() ======================================================================================================================================================================
 
-def output_result_file(true_coverages_of_samples_to_test, true_coverages_of_samples_to_train, qc_negative_list, clean_chromosomes_amplicons, run_id, mode):
+def output_result_file(true_coverages_of_samples_to_test, true_coverages_of_samples_to_train, qc_negative_list, clean_chromosomes_amplicons, out_prfx, mode):
     """
     :param true_coverages_of_samples_to_test: coverages before normalization
     :param true_coverages_of_samples_to_train: coverages before normalization
     :param qc_negative_list: list of samples that did not passed QC
     :param clean_chromosomes_amplicons: amplicons from clean samples
-    :param run_id: name of task
+    :param out_prfx: name of task
     :param mode: merging control and test sample or not
     :return: output file with coverages and QC report
     """
     ordered_list_of_samples_test = list(sorted(true_coverages_of_samples_to_test.iterkeys()))
     ordered_list_of_samples_control = list(sorted(true_coverages_of_samples_to_train.iterkeys()))
-    with open("./result/" + run_id + "_qc.xls", "wb") as f:
+    with open("./result/" + out_prfx + "_qc.xls", "wb") as f:
         top_string = "Gene\tTarget\t"
         for sample in ordered_list_of_samples_test:
             if sample not in qc_negative_list:
@@ -245,24 +246,48 @@ def output_result_file(true_coverages_of_samples_to_test, true_coverages_of_samp
 # main() ====================================================================================================================================================================================
 
 def main():
-    # Import arguments
-    bed_file = sys.argv[1]                   # Panel of amplicons
-    file_with_coverages = sys.argv[2]        # File with amplicons' coverages, calculated by chimeric_solver.py
-    file_with_training_samples = sys.argv[3] # Control data set amplicons' coverages
-    run_id = sys.argv[4]                     # Output file name
-    percent = float(sys.argv[5])             # Percent
+    parser = argparse.ArgumentParser(description='Control quality of amplicon coverage tables.')
+    
+    # Add arguments to the arguments parser
+    ## Input
+    parser.add_argument('--ampls', '-a', action='store', dest='amplicons_filepath', required=True,
+                        help='Path to TSV table with amplicons coordinates.')
+    parser.add_argument('--cov', action='store', dest='coverage_filepath', default = False, required=True,
+                        help='Path to TSV table with data set amplicons coverage.')
+    parser.add_argument('--control_cov', action='store', dest="ControlCoverage_filepath", default='', required=True,
+                        help='Path to TSV table with control data set amplicons coverage.')
+    ## Output
+    parser.add_argument('--out_prfx', action='store', dest='out_prfx', default='CONVector_result', required=False,
+                        help='Output file name prefix; default "CONVector_result".')
+    parser.add_argument('--out_dir', action='store', dest='out_dirpath', required=True,
+                        help='Path to output directory.')
+    ## Algorithm parameters
+    parser.add_argument('--ampls_frac', action='store', dest='amplicons_frac', default='0.8', required=False,
+                        help='Fraction of amplicons which will be taken into account when determining if a sample has normal coverage; default 0.8.')
 
+    # Import arguments from the arguments parser
+    args = parser.parse_args()
+    ## Input
+    amplicons_filepath = args.amplicons_filepath
+    coverage_filepath = args.coverage_filepath
+    ControlCoverage_filepath = args.ControlCoverage_filepath
+    ## Output
+    out_prfx = args.out_prfx
+    out_dirpath = args.out_dirpath
+    ## Algorithm parameters
+    amplicons_frac = args.amplicons_frac
+    
     # Import amplicons' coordinates table
-    directory = '/'.join(bed_file.split('/')[:-1])
-    panel_of_amplicons, counter_of_beds = chimeric_solver.parse_bed_file(directory, bed_file)
+    directory = '/'.join(amplicons_filepath.split('/')[:-1])
+    panel_of_amplicons = chimeric_solver.parse_bed_file(amplicons_filepath)
 
     # Import amplicons' coverage for "train" and "test" sets, gather statistics.
     ## samples_to_<test/train> is a dictionary with structure: {sample : {amplicon : coverages}}.
     ## low_covered_ampls_<test/train> is a list with low covered amplicons.
     ## clean_coverages_of_samples_to_<test/train> contains coverages of samples without low covered amplicons for statistical analysis.
     ## true_coverages_of_samples_to_<test/train> contains coverages of all samples (for output).
-    samples_to_test, low_covered_ampls_test, clean_coverages_of_samples_to_test, true_coverages_of_samples_to_test = parse_file_with_coverages(file_with_coverages)
-    samples_to_train, low_covered_ampls_train, clean_coverages_of_samples_to_train, true_coverages_of_samples_to_train = parse_file_with_coverages(file_with_training_samples)
+    samples_to_test, low_covered_ampls_test, clean_coverages_of_samples_to_test, true_coverages_of_samples_to_test = parse_file_with_coverages(coverage_filepath)
+    samples_to_train, low_covered_ampls_train, clean_coverages_of_samples_to_train, true_coverages_of_samples_to_train = parse_file_with_coverages(ControlCoverage_filepath)
 
     # Compute a union of low-covered amplicons in "train" and "test" sets.
     set_of_low_covered_ampls = set(low_covered_ampls_test + low_covered_ampls_train)
@@ -270,7 +295,7 @@ def main():
     # Set mode.
     ## Mode is equal to 1 if the control (train) and test samples differ. Otherwise, mode = 0.
     mode = 0
-    if file_with_coverages != file_with_training_samples:
+    if coverage_filepath != ControlCoverage_filepath:
         mode = 1
 
     # Create a list of amplicons with low coverage and a list of all amplicons.
@@ -313,7 +338,7 @@ def main():
         for amplicon, element in ellipsoid.iteritems():
             if amplicon in list_of_amplicons_to_test:
                 list_of_robust_variances_control_against_control.append(element[1])
-            num_of_accepted = int(len(list_of_amplicons_to_test) * percent)
+            num_of_accepted = int(len(list_of_amplicons_to_test) * amplicons_frac)
             qChisq = quantiles99[(num_of_accepted)]
             normal_or_not, avtc_residuals_for_amplicons = diagnose_chromosome_ellipsoid(samples_to_test, ellipsoid, list_of_amplicons_to_test, qChisq, num_of_accepted)
             list_of_normal_or_not_dicts.append(normal_or_not)
@@ -328,9 +353,9 @@ def main():
 
     # Write ARV statistics and sample filtration results to qc_control_log.txt.
     with open("qc_control_log.txt","wb") as qc_report:
-        arvc = (" ").join(["Average Robust Variance Of Control Dataset with filename", file_with_training_samples, ":", str(avrcc), "\n"])
+        arvc = (" ").join(["Average Robust Variance Of Control Dataset with filename", ControlCoverage_filepath, ":", str(avrcc), "\n"])
         qc_report.write(arvc + "\n")
-        arvt = (" ").join(["Average Robust Variance Of Test Dataset with filename", file_with_coverages, ":", str(avrtt), "\n"])
+        arvt = (" ").join(["Average Robust Variance Of Test Dataset with filename", coverage_filepath, ":", str(avrtt), "\n"])
         qc_report.write(arvt + "\n")
         logger.info(" ".join(["ARVc =", str(arvc)]))
         logger.info(" ".join(["ARVt =", str(arvt)]))
@@ -340,7 +365,7 @@ def main():
     
     # Write amplicons' coverage without filtered out samples.
     # Add control samples to the table if merging of test and control samples is allowed by mode variable.
-    output_result_file(true_coverages_of_samples_to_test, true_coverages_of_samples_to_train, qc_negative_list, all_amplicon_names, run_id, mode)
+    output_result_file(true_coverages_of_samples_to_test, true_coverages_of_samples_to_train, qc_negative_list, all_amplicon_names, out_prfx, mode)
 
 # main() ====================================================================================================================================================================================
 
