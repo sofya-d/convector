@@ -73,13 +73,11 @@ def parse_file_with_coverages(coverage_filepath):
 
     # If average amplicon coverage in a sample is less than 50, exclude the amplicon from all samples
     log_ampl_cov_NoLowCov_dict = log_ampl_cov_dict
-    ampl_cov_NoLowCov_dict = copy.deepcopy(ampl_cov_dict)
     for sample_name in sample_names:
         for low_cov_ampl in low_cov_ampls:
             log_ampl_cov_NoLowCov_dict[sample_name].pop(low_lov_ampl, None)
-            ampl_cov_NoLowCov_dict[sample_name].pop(low_lov_ampl, None)
     
-    return ampl_cov_dict, ampl_cov_NoLowCov_dict, log_ampl_cov_NoLowCov_dict, low_cov_ampls
+    return ampl_cov_dict, log_ampl_cov_NoLowCov_dict, low_cov_ampls
 
 # parse_file_with_coverages() ===============================================================================================================================================================
 
@@ -135,16 +133,16 @@ def normalize_data_inside_chromosomes(clean_chromosomes_amplicons, samples):
 
 # form_ellipsoid() ==========================================================================================================================================================================
 
-def form_ellipsoid(samples_to_train, amplicons_from_chromosome):
+def form_ellipsoid(train_log_ampl_cov_NoLowCov_dict, amplicons_from_chromosome):
     """
-    :param samples_to_train: dictionary {amplicon name : coverages in samples from training samples}
+    :param train_log_ampl_cov_NoLowCov_dict: dictionary {amplicon name : coverages in samples from training samples}
     :param amplicons_from_chromosome: coverages of samples from control dataset, list
     :return:
     """
     ellipsoid = {}
     for amplicon in amplicons_from_chromosome:
         amplicon_values = []
-        for name, info in samples_to_train.iteritems():
+        for name, info in train_log_ampl_cov_NoLowCov_dict.iteritems():
             amplicon_values.append(info[amplicon])
         ellipsoid[amplicon] = (statistics.medianW(amplicon_values), statistics.sn_estimator(amplicon_values) ** 2)
     return ellipsoid
@@ -154,10 +152,10 @@ def form_ellipsoid(samples_to_train, amplicons_from_chromosome):
 
 # diagnose_chromosome_ellipsoid() ===========================================================================================================================================================
 
-def diagnose_chromosome_ellipsoid(samples_to_test, ellipsoid, list_of_amplicons_to_test, qChisq, num_of_accepted):
+def diagnose_chromosome_ellipsoid(test_log_ampl_cov_NoLowCov_dict, ellipsoid, list_of_amplicons_to_test, qChisq, num_of_accepted):
     """
 
-    :param samples_to_test: coverages in samples and amplicons, dict {sample name : {ampl name : coverage} }
+    :param test_log_ampl_cov_NoLowCov_dict: coverages in samples and amplicons, dict {sample name : {ampl name : coverage} }
     :param ellipsoid: pairs for each amplicon, (estimation of mean, estimation of standard deviation)
     :param list_of_amplicons_to_test: list of amplicons from one chromosome without low covered amplicons
     :param qChisq: corresponding chi square quantile
@@ -169,7 +167,7 @@ def diagnose_chromosome_ellipsoid(samples_to_test, ellipsoid, list_of_amplicons_
     statistic_for_sample_and_chromosome = defaultdict(list)
     avtc_residuals_for_amplicons = defaultdict(list)
 
-    for sample, coverages_of_amplicons in samples_to_test.iteritems():
+    for sample, coverages_of_amplicons in samples_test_log_ampl_cov_NoLowCov_dictto_test.iteritems():
         for ampl in list_of_amplicons_to_test:
             distance_to_mean = (coverages_of_amplicons[ampl] - ellipsoid[ampl][0])
             dist = (distance_to_mean ** 2) / (ellipsoid[ampl][1])
@@ -219,18 +217,18 @@ def form_list_of_qc_negative(list_of_normal_or_not_dicts, samples_to_test_qc):
 
 # output_result_file() ======================================================================================================================================================================
 
-def output_result_file(true_coverages_of_samples_to_test, true_coverages_of_samples_to_train, qc_negative_list, clean_chromosomes_amplicons, out_prfx, mode):
+def output_result_file(test_ampl_cov_dict, train_ampl_cov_dict, qc_negative_list, clean_chromosomes_amplicons, out_prfx, mode):
     """
-    :param true_coverages_of_samples_to_test: coverages before normalization
-    :param true_coverages_of_samples_to_train: coverages before normalization
+    :param test_ampl_cov_dict: coverages before normalization
+    :param train_ampl_cov_dict: coverages before normalization
     :param qc_negative_list: list of samples that did not passed QC
     :param clean_chromosomes_amplicons: amplicons from clean samples
     :param out_prfx: name of task
     :param mode: merging control and test sample or not
     :return: output file with coverages and QC report
     """
-    ordered_list_of_samples_test = list(sorted(true_coverages_of_samples_to_test.iterkeys()))
-    ordered_list_of_samples_control = list(sorted(true_coverages_of_samples_to_train.iterkeys()))
+    ordered_list_of_samples_test = list(sorted(test_ampl_cov_dict.iterkeys()))
+    ordered_list_of_samples_control = list(sorted(train_ampl_cov_dict.iterkeys()))
     with open("./result/" + out_prfx + "_qc.xls", "wb") as f:
         top_string = "Gene\tTarget\t"
         for sample in ordered_list_of_samples_test:
@@ -246,10 +244,10 @@ def output_result_file(true_coverages_of_samples_to_test, true_coverages_of_samp
                 new_result_string = "N/A\t" + ampl + "\t"
                 for sample in ordered_list_of_samples_test:
                     if sample not in qc_negative_list:
-                        new_result_string += str(true_coverages_of_samples_to_test[sample][ampl]) + "\t"
+                        new_result_string += str(test_ampl_cov_dict[sample][ampl]) + "\t"
                 if mode == 1:
                     for sample in ordered_list_of_samples_control:
-                        new_result_string += str(true_coverages_of_samples_to_train[sample][ampl]) + "\t"
+                        new_result_string += str(train_ampl_cov_dict[sample][ampl]) + "\t"
 
                 new_result_string += "\n"
                 f.write(new_result_string)
@@ -300,11 +298,13 @@ def main():
     ## low_covered_ampls_<test/train> is a list with low covered amplicons.
     ## clean_coverages_of_samples_to_<test/train> contains coverages of samples without low covered amplicons for statistical analysis.
     ## true_coverages_of_samples_to_<test/train> contains coverages of all samples (for output).
-    true_coverages_of_samples_to_test, clean_coverages_of_samples_to_test, samples_to_test, low_covered_ampls_test = parse_file_with_coverages(coverage_filepath)
-    true_coverages_of_samples_to_train, clean_coverages_of_samples_to_train, samples_to_train, low_covered_ampls_train = parse_file_with_coverages(ControlCoverage_filepath)
+    
+    #return ampl_cov_dict, log_ampl_cov_NoLowCov_dict, low_cov_ampls
+    test_ampl_cov_dict, test_log_ampl_cov_NoLowCov_dict, test_low_cov_ampls = parse_file_with_coverages(coverage_filepath)
+    train_ampl_cov_dict, train_log_ampl_cov_NoLowCov_dict, train_low_cov_ampls = parse_file_with_coverages(ControlCoverage_filepath)
 
     # Compute a union of low-covered amplicons in "train" and "test" sets.
-    set_of_low_covered_ampls = set(low_covered_ampls_test + low_covered_ampls_train)
+    set_of_low_covered_ampls = set(test_low_cov_ampls + train_low_cov_ampls)
 
     # Set mode.
     ## Mode is equal to 1 if the control (train) and test samples differ. Otherwise, mode = 0.
@@ -322,16 +322,16 @@ def main():
             all_amplicon_names[key].append(amplicon.ID)
 
     # Normalize amplicons' coverages by total chromosome coverage.
-    total_amount_sample_chromosome_test = normalize_data_inside_chromosomes(clean_chromosomes_amplicons, samples_to_test)
-    total_amount_sample_chromosome_train = normalize_data_inside_chromosomes(clean_chromosomes_amplicons, samples_to_train)
+    total_amount_sample_chromosome_test = normalize_data_inside_chromosomes(clean_chromosomes_amplicons, test_log_ampl_cov_NoLowCov_dict)
+    total_amount_sample_chromosome_train = normalize_data_inside_chromosomes(clean_chromosomes_amplicons, train_log_ampl_cov_NoLowCov_dict)
 
     # Calculate some statistics based on amplicon's coverages, write into the dictionaries.
     ellipsoids_for_chromosomes = {}
     ellipsoids_for_chromosomes_test = {}
     for chr, amplicons_from_chromosome in clean_chromosomes_amplicons.iteritems():
         if chr.startswith("chr"):
-            ellipsoids_for_chromosomes[chr] = form_ellipsoid(samples_to_train, amplicons_from_chromosome)
-            ellipsoids_for_chromosomes_test[chr] = form_ellipsoid(samples_to_test, amplicons_from_chromosome)
+            ellipsoids_for_chromosomes[chr] = form_ellipsoid(train_log_ampl_cov_NoLowCov_dict, amplicons_from_chromosome)
+            ellipsoids_for_chromosomes_test[chr] = form_ellipsoid(test_log_ampl_cov_NoLowCov_dict, amplicons_from_chromosome)
 
     # Create list_of_robust_variances_test_against_test variable.
     list_of_robust_variances_test_against_test = []
@@ -354,11 +354,11 @@ def main():
                 list_of_robust_variances_control_against_control.append(element[1])
             num_of_accepted = int(len(list_of_amplicons_to_test) * amplicons_frac)
             qChisq = quantiles99[(num_of_accepted)]
-            normal_or_not, avtc_residuals_for_amplicons = diagnose_chromosome_ellipsoid(samples_to_test, ellipsoid, list_of_amplicons_to_test, qChisq, num_of_accepted)
+            normal_or_not, avtc_residuals_for_amplicons = diagnose_chromosome_ellipsoid(test_log_ampl_cov_NoLowCov_dict, ellipsoid, list_of_amplicons_to_test, qChisq, num_of_accepted)
             list_of_normal_or_not_dicts.append(normal_or_not)
 
     # Get list of samples with irregular chromosomes' coverage.
-    samples_to_test_qc = sorted(list(samples_to_test.iterkeys()))
+    samples_to_test_qc = sorted(list(test_log_ampl_cov_NoLowCov_dict.iterkeys()))
     qc_negative_list = form_list_of_qc_negative(list_of_normal_or_not_dicts, samples_to_test_qc)
 
     # Calculate ARV statistics for "train" (control) and test data sets.
@@ -379,7 +379,7 @@ def main():
     
     # Write amplicons' coverage without filtered out samples.
     # Add control samples to the table if merging of test and control samples is allowed by mode variable.
-    output_result_file(true_coverages_of_samples_to_test, true_coverages_of_samples_to_train, qc_negative_list, all_amplicon_names, out_prfx, mode)
+    output_result_file(test_ampl_cov_dict, train_ampl_cov_dict, qc_negative_list, all_amplicon_names, out_prfx, mode)
 
 # main() ====================================================================================================================================================================================
 
