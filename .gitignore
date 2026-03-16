@@ -6,3 +6,4 @@ result/
 *.log
 *.pyc
 tmp_*
+qc_control_log.txt
