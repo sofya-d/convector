@@ -21,53 +21,65 @@ logger = logging.getLogger('CONVector_logger')
 
 def parse_file_with_coverages(coverage_filepath):
     """
-    :param coverage_filepath: path to TSV file with amplicons' coverage; format described in manual
-    :return: dictionaries 'samples' {sample : {amplicon : coverages}};
-             list with low covered amplicons;
-             coverages of clean samples (without low covered amplicons, for statistical analysis);
-             coverages of all samples (for output)
-    """
+    param:        coverage_filepath: path to TSV file with amplicons' coverage; format described in manual
     
+    return:               ampl_cov_dict: a dictionary with structure {sample: {amplicon: coverage}};
+                 ampl_cov_NoLowCov_dict: a dictionary with structure {sample: {amplicon: coverage}} without low covered amplicons;
+             log_ampl_cov_NoLowCov_dict: a dictionary with structure {sample: {amplicon: log(coverage)}};
+                          low_cov_ampls: a list of low covered amplicons names.
+    """
+    # Read lines from TSV amplicon coverage table, including header.
     with open(coverage_filepath) as handle:
-        array_of_lines = handle.readlines()
+        coverage_table_lines = handle.readlines()
 
-    samples = defaultdict(dict)
-    true_coverages_clean = defaultdict(dict)
-    true_coverages = defaultdict(dict)
-    total_number_of_samples = 0
-    low_covered_ampls = []
-    samples_names = []
-    for i in xrange(len(array_of_lines)):
-        line = array_of_lines[i]
+    # Get sample names from header.
+    coverage_table_header = coverage_table_lines.pop(0)
+    coverage_table_header = coverage_table_header.split()
+    sample_names = coverage_table_header[2:]
+    sample_num = len(sample_names)
+
+    log_ampl_cov_dict = defaultdict(dict)
+    ampl_cov_dict = defaultdict(dict)
+    low_cov_ampls = []
+    homozygous_deletion_threshold = 10
+    
+    # Iterate through table rows => amplicons
+    for i in xrange(len(coverage_table_lines)):
+        line = coverage_table_lines[i]
         splitted_line = line.split()
-        if not i:
-            samples_names = splitted_line[2:]
-            total_number_of_samples = len(samples_names)
-        else:
-            summa_of_coverages = 0
-            ampl_name = splitted_line[1]
-            for i in xrange(len(samples_names)):
-                value = 0
-                try:
-                    value = (int(splitted_line[i + 2]))
-                except ValueError:
-                    break
-                true_coverages_clean[samples_names[i]][ampl_name] = value
-                true_coverages[samples_names[i]][ampl_name] = value
-                # 10 - threshold for homozygous deletion
-                if value > 10:
-                    samples[samples_names[i]][ampl_name] = log(float(value))
-                else:
-                    samples[samples_names[i]][ampl_name] = 0.01
-                    # 0.01 - just very low value, indicates a homo del
-                summa_of_coverages += value
-            if summa_of_coverages / total_number_of_samples < 50:
-                for name in samples_names:
-                    samples[name].pop(ampl_name, None)
-                    true_coverages_clean[name].pop(ampl_name, None)
-                # exclude low covered (in all samples) amplicons using threshold 50
-                low_covered_ampls.append(ampl_name)
-    return samples, low_covered_ampls, true_coverages_clean, true_coverages
+        ampl_name = splitted_line[1]
+        coverages = splitted_line[2:]
+        coverage_sum = 0
+
+        # Iterate through columns in the row => coverage of an amplicon in each sample
+        for j in xrange(len(sample_names)):
+            sample_name = sample_names[j]
+            try:
+                coverage = (int(coverages[j]))
+            except ValueError:
+                break
+            ampl_cov_dict[sample_name][ampl_name] = coverage
+            if coverage > homozygous_deletion_threshold:
+                # Append logarithm of coverage to the dictionary.
+                log_ampl_cov_dict[sample_name][ampl_name] = log(float(coverage))
+            else:
+                log_ampl_cov_dict[sample_name][ampl_name] = 0.01
+                # 0.01 is just a very low coverage; it indicates a homozygous deletion.
+            # Total coverage of an amplicon in all samples
+            coverage_sum += coverage
+
+        if coverage_sum / sample_num < 50:
+            low_cov_ampls.append(ampl_name)
+
+    # If average amplicon coverage in a sample is less than 50, exclude the amplicon from all samples
+    log_ampl_cov_NoLowCov_dict = log_ampl_cov_dict
+    ampl_cov_NoLowCov_dict = copy.deepcopy(ampl_cov_dict)
+    for sample_name in sample_names:
+        for low_cov_ampl in low_cov_ampls:
+            log_ampl_cov_NoLowCov_dict[sample_name].pop(low_lov_ampl, None)
+            ampl_cov_NoLowCov_dict[sample_name].pop(low_lov_ampl, None)
+    
+    return ampl_cov_dict, ampl_cov_NoLowCov_dict, log_ampl_cov_NoLowCov_dict, low_cov_ampls
 
 # parse_file_with_coverages() ===============================================================================================================================================================
 
@@ -288,8 +300,8 @@ def main():
     ## low_covered_ampls_<test/train> is a list with low covered amplicons.
     ## clean_coverages_of_samples_to_<test/train> contains coverages of samples without low covered amplicons for statistical analysis.
     ## true_coverages_of_samples_to_<test/train> contains coverages of all samples (for output).
-    samples_to_test, low_covered_ampls_test, clean_coverages_of_samples_to_test, true_coverages_of_samples_to_test = parse_file_with_coverages(coverage_filepath)
-    samples_to_train, low_covered_ampls_train, clean_coverages_of_samples_to_train, true_coverages_of_samples_to_train = parse_file_with_coverages(ControlCoverage_filepath)
+    true_coverages_of_samples_to_test, clean_coverages_of_samples_to_test, samples_to_test, low_covered_ampls_test = parse_file_with_coverages(coverage_filepath)
+    true_coverages_of_samples_to_train, clean_coverages_of_samples_to_train, samples_to_train, low_covered_ampls_train = parse_file_with_coverages(ControlCoverage_filepath)
 
     # Compute a union of low-covered amplicons in "train" and "test" sets.
     set_of_low_covered_ampls = set(low_covered_ampls_test + low_covered_ampls_train)
