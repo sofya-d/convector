@@ -19,22 +19,24 @@ logger = logging.getLogger('CONVector_logger')
 
 # parse_file_with_coverages() ===============================================================================================================================================================
 
-def parse_file_with_coverages(filename):
+def parse_file_with_coverages(coverage_filepath):
     """
-    :param filename: name of file with coverages, .xls, format described in manual
+    :param coverage_filepath: path to TSV file with amplicons' coverage; format described in manual
     :return: dictionaries 'samples' {sample : {amplicon : coverages}};
              list with low covered amplicons;
              coverages of clean samples (without low covered amplicons, for statistical analysis);
              coverages of all samples (for output)
     """
+    
+    with open(coverage_filepath) as handle:
+        array_of_lines = handle.readlines()
+
     samples = defaultdict(dict)
     true_coverages_clean = defaultdict(dict)
     true_coverages = defaultdict(dict)
     total_number_of_samples = 0
     low_covered_ampls = []
-    with open(filename) as f:
-        array_of_lines = f.readlines()
-        samples_names = []
+    samples_names = []
     for i in xrange(len(array_of_lines)):
         line = array_of_lines[i]
         splitted_line = line.split()
@@ -252,7 +254,7 @@ def main():
     ## Input
     parser.add_argument('--ampls', '-a', action='store', dest='amplicons_filepath', required=True,
                         help='Path to TSV table with amplicons coordinates.')
-    parser.add_argument('--cov', action='store', dest='coverage_filepath', default = False, required=True,
+    parser.add_argument('--cov', action='store', dest='coverage_filepath', required=True,
                         help='Path to TSV table with data set amplicons coverage.')
     parser.add_argument('--control_cov', action='store', dest="ControlCoverage_filepath", default='', required=True,
                         help='Path to TSV table with control data set amplicons coverage.')
