@@ -109,24 +109,20 @@ def return_quantiles_chisq():
 
 # normalize_data_inside_chromosomes() =======================================================================================================================================================
 
-def normalize_data_inside_chromosomes(norm_cov_ampl_names, samples):
+def normalize_data_inside_chromosomes(norm_cov_ampl_names, log_ampl_cov_NoLowCov_dict):
     """
-    :param norm_cov_ampl_names: coverages of amplicons inside one chromosome
-    :param samples: list with names
-    :return: normalized coverages
+     param:        norm_cov_ampl_names: dictionary of structure {chromosome_name: amplicon_name}
+     param: log_ampl_cov_NoLowCov_dict: a dictionary with structure {sample: {amplicon: log(coverage)}}
+    return: normalized coverages
     """
-    total_amount_sample_chromosome = defaultdict(dict)
-    for sample, data in samples.iteritems():
-        for chromosome, amplicons in norm_cov_ampl_names.iteritems():
-            try:
-                summa_of_coverages = [data[amplicon] for amplicon in amplicons]
-            except KeyError:
-                logger.warn("Smth went wrong...\nThe most probable thing - you are using the wrong file with coverages!")
-                sys.exit(1)
-            for amplicon in amplicons:
-                data[amplicon] -= statistics.mean(summa_of_coverages)
-            total_amount_sample_chromosome[sample][chromosome] = sum(summa_of_coverages)
-    return total_amount_sample_chromosome
+    chrom_cov_dict = defaultdict(dict)
+    for sample, ampl_cov_dict in log_ampl_cov_NoLowCov_dict.iteritems():
+        for chrom, ampl_names in norm_cov_ampl_names.iteritems():
+            ampl_coverages = [ampl_cov_dict[ampl_name] for ampl_name in ampl_names]
+            for ampl_name in ampl_names:
+                ampl_cov_dict[ampl_name] -= statistics.mean(ampl_coverages)
+            chrom_cov_dict[sample][chrom] = sum(ampl_coverages)
+    return chrom_cov_dict
 
 # normalize_data_inside_chromosomes() =======================================================================================================================================================
 
@@ -312,8 +308,8 @@ def main():
             ampl_names[chrom].append(amplicon.ID)
 
     # Normalize amplicons' coverages by total chromosome coverage.
-    total_amount_sample_chromosome_test = normalize_data_inside_chromosomes(norm_cov_ampl_names, test_log_ampl_cov_NoLowCov_dict)
-    total_amount_sample_chromosome_train = normalize_data_inside_chromosomes(norm_cov_ampl_names, train_log_ampl_cov_NoLowCov_dict)
+    test_chrom_cov_dict = normalize_data_inside_chromosomes(norm_cov_ampl_names, test_log_ampl_cov_NoLowCov_dict)
+    train_chrom_cov_dict = normalize_data_inside_chromosomes(norm_cov_ampl_names, train_log_ampl_cov_NoLowCov_dict)
 
     # Calculate some statistics based on amplicon's coverages, write into the dictionaries.
     ellipsoids_for_chromosomes = {}
