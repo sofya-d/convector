@@ -107,40 +107,40 @@ def return_quantiles_chisq():
 # return_quantiles_chisq() ==================================================================================================================================================================
 
 
-# normalize_data_inside_chromosomes() =======================================================================================================================================================
+# normalize_by_chromosome_coverage() =======================================================================================================================================================
 
-def normalize_data_inside_chromosomes(norm_cov_ampl_names, log_ampl_cov_NoLowCov_dict):
+def normalize_by_chromosome_coverage(norm_cov_ampl_names, log_ampl_cov_NoLowCov_dict):
     """
      param:        norm_cov_ampl_names: dictionary of structure {chromosome_name: amplicon_name}
      param: log_ampl_cov_NoLowCov_dict: a dictionary with structure {sample: {amplicon: log(coverage)}}
-    return: normalized coverages
     """
-    chrom_cov_dict = defaultdict(dict)
     for sample, ampl_cov_dict in log_ampl_cov_NoLowCov_dict.iteritems():
-        for chrom, ampl_names in norm_cov_ampl_names.iteritems():
-            ampl_coverages = [ampl_cov_dict[ampl_name] for ampl_name in ampl_names]
-            for ampl_name in ampl_names:
+        for chrom, ampl_names_lst in norm_cov_ampl_names.iteritems():
+            ampl_coverages = [ampl_cov_dict[ampl_name] for ampl_name in ampl_names_lst]
+            for ampl_name in ampl_names_lst:
                 ampl_cov_dict[ampl_name] -= statistics.mean(ampl_coverages)
-            chrom_cov_dict[sample][chrom] = sum(ampl_coverages)
-    return chrom_cov_dict
 
-# normalize_data_inside_chromosomes() =======================================================================================================================================================
+# normalize_by_chromosome_coverage() =======================================================================================================================================================
 
 
 # form_ellipsoid() ==========================================================================================================================================================================
 
-def form_ellipsoid(train_log_ampl_cov_NoLowCov_dict, amplicons_from_chromosome):
+def form_ellipsoid(log_ampl_cov_NoLowCov_dict, ampl_names_lst):
     """
-    :param train_log_ampl_cov_NoLowCov_dict: dictionary {amplicon name : coverages in samples from training samples}
-    :param amplicons_from_chromosome: coverages of samples from control dataset, list
-    :return:
+     param: log_ampl_cov_NoLowCov_dict: a dictionary with structure {sample: {amplicon: log(coverage)}}
+     param:             ampl_names_lst: list of names of amplicons from one chromosome
+    return:                  ellipsoid: a dictionary of structure {amplicon: (stats_estimator_1, stats_estimator_2)}
     """
     ellipsoid = {}
-    for amplicon in amplicons_from_chromosome:
-        amplicon_values = []
-        for name, info in train_log_ampl_cov_NoLowCov_dict.iteritems():
-            amplicon_values.append(info[amplicon])
-        ellipsoid[amplicon] = (statistics.medianW(amplicon_values), statistics.sn_estimator(amplicon_values) ** 2)
+    for ampl_name in ampl_names_lst:
+        ampl_cov_lst = []
+        for sample, ampl_cov_dict in log_ampl_cov_NoLowCov_dict.iteritems():
+            ampl_cov = ampl_cov_dict[ampl_name]
+            ampl_cov_lst.append(ampl_cov)
+        # statistics.medianW() and statistics.sn_estimator() are imported from <CONVector directory>/statistics.py.
+        ## statistics.medianW() calculates Hodges-Lehmann estimator (according to Google Gemini).
+        ## statistics.sn_estimator calculates S_n estimator of scale developed by Rousseeuw and Croux (according to Google Gemini).
+        ellipsoid[ampl_name] = (statistics.medianW(ampl_cov_lst), statistics.sn_estimator(ampl_cov_lst) ** 2)
     return ellipsoid
 
 # form_ellipsoid() ==========================================================================================================================================================================
@@ -163,7 +163,7 @@ def diagnose_chromosome_ellipsoid(test_log_ampl_cov_NoLowCov_dict, ellipsoid, li
     statistic_for_sample_and_chromosome = defaultdict(list)
     avtc_residuals_for_amplicons = defaultdict(list)
 
-    for sample, coverages_of_amplicons in samples_test_log_ampl_cov_NoLowCov_dictto_test.iteritems():
+    for sample, coverages_of_amplicons in test_log_ampl_cov_NoLowCov_dict.iteritems():
         for ampl in list_of_amplicons_to_test:
             distance_to_mean = (coverages_of_amplicons[ampl] - ellipsoid[ampl][0])
             dist = (distance_to_mean ** 2) / (ellipsoid[ampl][1])
@@ -283,7 +283,7 @@ def main():
     out_prfx = args.out_prfx
     out_dirpath = args.out_dirpath
     ## Algorithm parameters
-    amplicons_frac = args.amplicons_frac
+    amplicons_frac = float(args.amplicons_frac)
     
     # Import amplicons' coordinates table
     directory = '/'.join(amplicons_filepath.split('/')[:-1])
@@ -308,16 +308,15 @@ def main():
             ampl_names[chrom].append(amplicon.ID)
 
     # Normalize amplicons' coverages by total chromosome coverage.
-    test_chrom_cov_dict = normalize_data_inside_chromosomes(norm_cov_ampl_names, test_log_ampl_cov_NoLowCov_dict)
-    train_chrom_cov_dict = normalize_data_inside_chromosomes(norm_cov_ampl_names, train_log_ampl_cov_NoLowCov_dict)
+    normalize_by_chromosome_coverage(norm_cov_ampl_names, test_log_ampl_cov_NoLowCov_dict)
+    normalize_by_chromosome_coverage(norm_cov_ampl_names, train_log_ampl_cov_NoLowCov_dict)
 
     # Calculate some statistics based on amplicon's coverages, write into the dictionaries.
     ellipsoids_for_chromosomes = {}
     ellipsoids_for_chromosomes_test = {}
-    for chr, amplicons_from_chromosome in norm_cov_ampl_names.iteritems():
-        if chr.startswith("chr"):
-            ellipsoids_for_chromosomes[chr] = form_ellipsoid(train_log_ampl_cov_NoLowCov_dict, amplicons_from_chromosome)
-            ellipsoids_for_chromosomes_test[chr] = form_ellipsoid(test_log_ampl_cov_NoLowCov_dict, amplicons_from_chromosome)
+    for chrom, ampl_names_lst in norm_cov_ampl_names.iteritems():
+        ellipsoids_for_chromosomes[chrom] = form_ellipsoid(train_log_ampl_cov_NoLowCov_dict, ampl_names_lst)
+        ellipsoids_for_chromosomes_test[chrom] = form_ellipsoid(test_log_ampl_cov_NoLowCov_dict, ampl_names_lst)
 
     # Create list_of_robust_variances_test_against_test variable.
     list_of_robust_variances_test_against_test = []
