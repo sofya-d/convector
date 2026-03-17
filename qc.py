@@ -318,13 +318,14 @@ def main():
         train_ellipsoids[chrom] = form_ellipsoid(train_log_ampl_cov_NoLowCov_dict, ampl_names_lst)
         test_ellipsoids[chrom] = form_ellipsoid(test_log_ampl_cov_NoLowCov_dict, ampl_names_lst)
 
-    # Create list_of_robust_variances_test_against_test variable.
-    list_of_robust_variances_test_against_test = []
-    for chr, ellipsoid_test in test_ellipsoids.iteritems():
-        list_of_amplicons_to_test = norm_cov_ampl_names[chr]
-        for amplicon, element in ellipsoid_test.iteritems():
-            if amplicon in list_of_amplicons_to_test:
-                list_of_robust_variances_test_against_test.append(element[1])
+    # Create robust_variances_test_vs_test_lst variable.
+    robust_variances_test_vs_test_lst = []
+    for chrom, ampl_ellipsoid_dict in test_ellipsoids.iteritems():
+        chrom_ampl_names = norm_cov_ampl_names[chrom]
+        for ampl_name, ellipsoid in ampl_ellipsoid_dict.iteritems():
+            if ampl_name in chrom_ampl_names:
+                Sn_estimator = ellipsoid[1]
+                robust_variances_test_vs_test_lst.append(Sn_estimator)
 
     # Create variables normal_or_not and avtc_residuals_for_amplicons.
     # normal_or_not contains values that signify whether chromosome coverage is regular or not.
@@ -348,7 +349,7 @@ def main():
 
     # Calculate ARV statistics for "train" (control) and test data sets.
     avrcc = statistics.mean(list_of_robust_variances_control_against_control)
-    avrtt = statistics.mean(list_of_robust_variances_test_against_test)
+    avrtt = statistics.mean(robust_variances_test_vs_test_lst)
 
     # Write ARV statistics and sample filtration results to qc_control_log.txt.
     with open("qc_control_log.txt","wb") as qc_report:
