@@ -187,36 +187,45 @@ def diagnose_chromosome_ellipsoid(log_ampl_cov_NoLowCov_dict, ampl_ellipsoid_dic
 # diagnose_chromosome_ellipsoid() ===========================================================================================================================================================
 
 
-# form_list_of_qc_negative() ================================================================================================================================================================
+# get_qc_failed_samples_lst() ===============================================================================================================================================================
 
-def form_list_of_qc_negative(sample_is_normal_dict_lst, samples_to_test_qc):
+def get_qc_failed_samples_lst(sample_is_normal_dict_lst, samples_to_qc):
     """
-    :param sample_is_normal_dict_lst: dict {sample : list of 0 and 1, determining the irregularity of coverage inside
-           chromomsome}
-    :param samples_to_test_qc: list of sample in test dataset, names
-    :return: list of samples that did not passed our QC algorithm
+     param: sample_is_normal_dict_lst: list of dictionaries; dictionaries are of structure {sample: int},
+                                       where int is 1 if sample's coverage is normal and int is 0 if
+                                       sample's coverage is irregular; number of dictionaries is equal to the
+                                       number of chromosomes in amplicons panel
+     param:             samples_to_qc: list of sample names
+    return: list of samples that did not passed our QC algorithm
     """
-    dict_of_sums = {}
-    num_of_required_good_chromosomes = len(sample_is_normal_dict_lst) - 1
-    list_of_negatives = []
-    for sample in samples_to_test_qc:
-        dict_of_sums[sample] = 0
-        for dictionary in sample_is_normal_dict_lst:
-            dict_of_sums[sample] += dictionary[sample]
-    counter_of_negative = 0
-    counter_of_positive = 0
-    for sample in sorted(dict_of_sums.iterkeys()):
-        if dict_of_sums[sample] < num_of_required_good_chromosomes:
+    
+    samples_to_qc.sort()
+    sample_is_normal_sum_dict = {}
+    # Minimum number of normally covered chromosomes threshold
+    chrom_num_threshold = len(sample_is_normal_dict_lst) - 1
+    qc_failed_samples_lst = []
+    
+    for sample in samples_to_qc:
+        sample_is_normal_sum_dict[sample] = 0
+        for sample_is_normal_dict in sample_is_normal_dict_lst:
+            sample_is_normal_sum_dict[sample] += sample_is_normal_dict[sample]
+    
+    qc_failed_samples_num = 0
+    qc_passed_samples_num = 0
+    for sample in samples_to_qc:
+        if sample_is_normal_sum_dict[sample] < chrom_num_threshold:
             logger.info("QC Negative " + sample)
-            counter_of_negative += 1
-            list_of_negatives.append(sample)
+            qc_failed_samples_num += 1
+            qc_failed_samples_lst.append(sample)
         else:
-            counter_of_positive += 1
+            qc_passed_samples_num += 1
             logger.info("QC Positive " + sample)
-    logger.warn(" ".join(["Overall:", str(counter_of_negative), "samples was filtered out and", str(counter_of_positive), "were accepted"]))
-    return list_of_negatives
+    
+    logger.warn('{} samples failed QC, {} samples passed QC.'.format(qc_failed_samples_num, qc_passed_samples_num))
+                
+    return qc_failed_samples_lst
 
-# form_list_of_qc_negative() ================================================================================================================================================================
+# get_qc_failed_samples_lst() ===============================================================================================================================================================
 
 
 # output_result_file() ======================================================================================================================================================================
@@ -353,8 +362,8 @@ def main():
                 robust_variances_control_vs_control_lst.append(Sn_estimator)
 
     # Get list of samples with irregular chromosomes' coverage.
-    samples_to_test_qc = sorted(list(test_log_ampl_cov_NoLowCov_dict.iterkeys()))
-    qc_negative_list = form_list_of_qc_negative(sample_is_normal_dict_lst, samples_to_test_qc)
+    samples_to_qc = sorted(list(test_log_ampl_cov_NoLowCov_dict.iterkeys()))
+    qc_negative_list = get_qc_failed_samples_lst(sample_is_normal_dict_lst, samples_to_qc)
 
     # Calculate ARV statistics for "train" (control) and test data sets.
     avrcc = statistics.mean(robust_variances_control_vs_control_lst)
