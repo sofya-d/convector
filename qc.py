@@ -88,16 +88,23 @@ def return_quantiles_chisq():
     """
     Reads files with quantiles of chi squared distribution, degrees of freedom: from 1 to 500 (depending on number
     of samples).
-    :return: tuple of dictionaries, {degree of freedom: corresponding quantile}
+    return: tuple of dictionaries, {degree of freedom: corresponding quantile}
     """
+    
+    qc_filepath = os.path.abspath(__file__)
+    CONVector_dirpath = os.path.dirname(qc_filepath)
+
+    quantiles99_filepath = os.path.join(CONVector_dirpath, 'quantiles/quantile_chisq_99.txt')
     quantiles99 = {}
-    quantiles95 = {}
-    with open("./quantiles/quantile_chisq_99.txt") as f:
+    with open(quantiles99_filepath) as f:
         counter = 1
         for line in f:
             quantiles99[counter] = float(line.split()[0])
             counter += 1
-    with open("./quantiles/quantile_chisq_95.txt") as f:
+
+    quantiles95_filepath = os.path.join(CONVector_dirpath, 'quantiles/quantile_chisq_95.txt')
+    quantiles95 = {}
+    with open(quantiles95_filepath) as f:
         counter = 1
         for line in f:
             quantiles95[counter] = float(line.split()[0])
@@ -148,52 +155,53 @@ def form_ellipsoid(log_ampl_cov_NoLowCov_dict, ampl_names_lst):
 
 # diagnose_chromosome_ellipsoid() ===========================================================================================================================================================
 
-def diagnose_chromosome_ellipsoid(test_log_ampl_cov_NoLowCov_dict, ellipsoid, list_of_amplicons_to_test, qChisq, num_of_accepted):
+def diagnose_chromosome_ellipsoid(log_ampl_cov_NoLowCov_dict, ampl_ellipsoid_dict, chrom_ampl_names, qChisq, accepted_ampls_num):
     """
-
-    :param test_log_ampl_cov_NoLowCov_dict: coverages in samples and amplicons, dict {sample name : {ampl name : coverage} }
-    :param ellipsoid: pairs for each amplicon, (estimation of mean, estimation of standard deviation)
-    :param list_of_amplicons_to_test: list of amplicons from one chromosome without low covered amplicons
-    :param qChisq: corresponding chi square quantile
-    :param num_of_accepted: number of amplicons that will be taken into account
-    :return: dict of lists with normal or not coverages inside one chromosome ( 1 = normal, 0 = irregular);
-             average robust residuals for calculation of ARV
+     param: log_ampl_cov_NoLowCov_dict: a dictionary with structure {sample: {amplicon: log(coverage)}}
+     param:        ampl_ellipsoid_dict: a dictionary of structure {amplicon: (stats_estimator_1, stats_estimator_2)}
+     param:           chrom_ampl_names: list of amplicons from one chromosome without low covered amplicons
+     param:                     qChisq: corresponding chi square quantile
+     param:         accepted_ampls_num: number of amplicons that will be taken into account
+    return:      sample_is_normal_dict: a dictionary of structure {sample: int}, where int is 1 if sample's coverage is normal and int is 0 if sample's coverage is irregular
     """
-    normal_or_not = defaultdict(int)
-    statistic_for_sample_and_chromosome = defaultdict(list)
-    avtc_residuals_for_amplicons = defaultdict(list)
-
-    for sample, coverages_of_amplicons in test_log_ampl_cov_NoLowCov_dict.iteritems():
-        for ampl in list_of_amplicons_to_test:
-            distance_to_mean = (coverages_of_amplicons[ampl] - ellipsoid[ampl][0])
-            dist = (distance_to_mean ** 2) / (ellipsoid[ampl][1])
-            statistic_for_sample_and_chromosome[sample].append(dist)
-            avtc_residuals_for_amplicons[ampl].append(distance_to_mean ** 2)
-    for sample, statistic_values in statistic_for_sample_and_chromosome.iteritems():
-        if sum(sorted(statistic_values)[:num_of_accepted]) < qChisq:
-            normal_or_not[sample] = 1
+    
+    sample_is_normal_dict = defaultdict(int)
+    sample_ampl_dist_dict = defaultdict(list)
+    
+    for sample, ampl_cov_dict in log_ampl_cov_NoLowCov_dict.iteritems():
+        for ampl_name in chrom_ampl_names:
+            amplicon_coverage = ampl_cov_dict[ampl_name]
+            amplicon_medianW = ampl_ellipsoid_dict[ampl_name][0]
+            amplicon_Sn_estimator = ampl_ellipsoid_dict[ampl_name][1]
+            ampl_dist_to_mean = (amplicon_coverage - amplicon_medianW)
+            ampl_dist = (ampl_dist_to_mean ** 2) / (amplicon_Sn_estimator)
+            sample_ampl_dist_dict[sample].append(ampl_dist)
+    
+    for sample, ampl_dist_lst in sample_ampl_dist_dict.iteritems():
+        if sum(sorted(ampl_dist_lst)[:accepted_ampls_num]) < qChisq:
+            sample_is_normal_dict[sample] = 1
         else:
-            normal_or_not[sample] = 0
-    return normal_or_not, avtc_residuals_for_amplicons
+            sample_is_normal_dict[sample] = 0
+    return sample_is_normal_dict
 
 # diagnose_chromosome_ellipsoid() ===========================================================================================================================================================
 
 
 # form_list_of_qc_negative() ================================================================================================================================================================
 
-def form_list_of_qc_negative(list_of_normal_or_not_dicts, samples_to_test_qc):
+def form_list_of_qc_negative(sample_is_normal_dict_lst, samples_to_test_qc):
     """
-    :param list_of_normal_or_not_dicts: dict {sample : list of 0 and 1, determining the irregularity of coverage inside
+    :param sample_is_normal_dict_lst: dict {sample : list of 0 and 1, determining the irregularity of coverage inside
            chromomsome}
     :param samples_to_test_qc: list of sample in test dataset, names
     :return: list of samples that did not passed our QC algorithm
     """
     dict_of_sums = {}
-    num_of_required_good_chromosomes = len(list_of_normal_or_not_dicts) - 1
+    num_of_required_good_chromosomes = len(sample_is_normal_dict_lst) - 1
     list_of_negatives = []
     for sample in samples_to_test_qc:
         dict_of_sums[sample] = 0
-        for dictionary in list_of_normal_or_not_dicts:
+        for dictionary in sample_is_normal_dict_lst:
             dict_of_sums[sample] += dictionary[sample]
     counter_of_negative = 0
     counter_of_positive = 0
@@ -327,28 +335,29 @@ def main():
                 Sn_estimator = ellipsoid[1]
                 robust_variances_test_vs_test_lst.append(Sn_estimator)
 
-    # Create variables normal_or_not and avtc_residuals_for_amplicons.
-    # normal_or_not contains values that signify whether chromosome coverage is regular or not.
-    # avtc_residuals_for_amplicons contains statistics for ARV computing.
+    # Create a sample_is_normal_dict_lst list.
+    # sample_is_normal_dict_lst contains sample_is_normal_dict dictionaries.
+    # sample_is_normal_dict is a dictionary of structure {sample: int}, where int=1 if sample's coverage is regular and int=0 if sample's coverage is irregular
     quantiles99, quantiles95 = return_quantiles_chisq()
-    list_of_robust_variances_control_against_control = []
-    list_of_normal_or_not_dicts = []
-    for chr, ellipsoid in train_ellipsoids.iteritems():
-        list_of_amplicons_to_test = norm_cov_ampl_names[chr]
-        for amplicon, element in ellipsoid.iteritems():
-            if amplicon in list_of_amplicons_to_test:
-                list_of_robust_variances_control_against_control.append(element[1])
-            num_of_accepted = int(len(list_of_amplicons_to_test) * amplicons_frac)
-            qChisq = quantiles99[(num_of_accepted)]
-            normal_or_not, avtc_residuals_for_amplicons = diagnose_chromosome_ellipsoid(test_log_ampl_cov_NoLowCov_dict, ellipsoid, list_of_amplicons_to_test, qChisq, num_of_accepted)
-            list_of_normal_or_not_dicts.append(normal_or_not)
+    robust_variances_control_vs_control_lst = []
+    sample_is_normal_dict_lst = []
+    for chrom, ampl_ellipsoid_dict in train_ellipsoids.iteritems():
+        chrom_ampl_names = norm_cov_ampl_names[chrom]
+        accepted_ampls_num = int(len(chrom_ampl_names) * amplicons_frac)
+        qChisq = quantiles99[(accepted_ampls_num)]
+        sample_is_normal_dict = diagnose_chromosome_ellipsoid(test_log_ampl_cov_NoLowCov_dict, ampl_ellipsoid_dict, chrom_ampl_names, qChisq, accepted_ampls_num)
+        sample_is_normal_dict_lst.append(sample_is_normal_dict)
+        for ampl_name, ellipsoid in ampl_ellipsoid_dict.iteritems():
+            if ampl_name in chrom_ampl_names:
+                Sn_estimator = ellipsoid[1]
+                robust_variances_control_vs_control_lst.append(Sn_estimator)
 
     # Get list of samples with irregular chromosomes' coverage.
     samples_to_test_qc = sorted(list(test_log_ampl_cov_NoLowCov_dict.iterkeys()))
-    qc_negative_list = form_list_of_qc_negative(list_of_normal_or_not_dicts, samples_to_test_qc)
+    qc_negative_list = form_list_of_qc_negative(sample_is_normal_dict_lst, samples_to_test_qc)
 
     # Calculate ARV statistics for "train" (control) and test data sets.
-    avrcc = statistics.mean(list_of_robust_variances_control_against_control)
+    avrcc = statistics.mean(robust_variances_control_vs_control_lst)
     avrtt = statistics.mean(robust_variances_test_vs_test_lst)
 
     # Write ARV statistics and sample filtration results to qc_control_log.txt.
