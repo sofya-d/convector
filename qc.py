@@ -370,17 +370,11 @@ def main():
     avrtt = statistics.mean(robust_variances_test_vs_test_lst)
 
     # Write ARV statistics and sample filtration results to qc_control_log.txt.
-    with open("qc_control_log.txt","wb") as qc_report:
-        arvc = (" ").join(["Average Robust Variance Of Control Dataset with filename", ControlCoverage_filepath, ":", str(avrcc), "\n"])
-        qc_report.write(arvc + "\n")
-        arvt = (" ").join(["Average Robust Variance Of Test Dataset with filename", coverage_filepath, ":", str(avrtt), "\n"])
-        qc_report.write(arvt + "\n")
-        logger.info(" ".join(["ARVc =", str(arvc)]))
-        logger.info(" ".join(["ARVt =", str(arvt)]))
-        qc_report.write((" ").join(["Total amount of samples filtered out using Quality Control algorithm:", str(len(qc_negative_list)), "\n\n"]) )
-        for negative_sample in qc_negative_list:
-            qc_report.write(("").join([negative_sample, " \n - did not passed QC Control", "\n\n"]))
-
+    arvc = (" ").join(["Average Robust Variance Of Control Dataset with filename", ControlCoverage_filepath, ":", str(avrcc)])
+    arvt = (" ").join(["Average Robust Variance Of Test Dataset with filename", coverage_filepath, ":", str(avrtt)])
+    logger.info(" ".join(["ARVc =", str(arvc)]))
+    logger.info(" ".join(["ARVt =", str(arvt)]))
+    
     # Set mode.
     ## Mode is equal to 1 if the control (train) and test samples differ. Otherwise, mode = 0.
     mode = 0
