@@ -312,15 +312,15 @@ def main():
     normalize_by_chromosome_coverage(norm_cov_ampl_names, train_log_ampl_cov_NoLowCov_dict)
 
     # Calculate some statistics based on amplicon's coverages, write into the dictionaries.
-    ellipsoids_for_chromosomes = {}
-    ellipsoids_for_chromosomes_test = {}
+    train_ellipsoids = {}
+    test_ellipsoids = {}
     for chrom, ampl_names_lst in norm_cov_ampl_names.iteritems():
-        ellipsoids_for_chromosomes[chrom] = form_ellipsoid(train_log_ampl_cov_NoLowCov_dict, ampl_names_lst)
-        ellipsoids_for_chromosomes_test[chrom] = form_ellipsoid(test_log_ampl_cov_NoLowCov_dict, ampl_names_lst)
+        train_ellipsoids[chrom] = form_ellipsoid(train_log_ampl_cov_NoLowCov_dict, ampl_names_lst)
+        test_ellipsoids[chrom] = form_ellipsoid(test_log_ampl_cov_NoLowCov_dict, ampl_names_lst)
 
     # Create list_of_robust_variances_test_against_test variable.
     list_of_robust_variances_test_against_test = []
-    for chr, ellipsoid_test in ellipsoids_for_chromosomes_test.iteritems():
+    for chr, ellipsoid_test in test_ellipsoids.iteritems():
         list_of_amplicons_to_test = norm_cov_ampl_names[chr]
         for amplicon, element in ellipsoid_test.iteritems():
             if amplicon in list_of_amplicons_to_test:
@@ -332,7 +332,7 @@ def main():
     quantiles99, quantiles95 = return_quantiles_chisq()
     list_of_robust_variances_control_against_control = []
     list_of_normal_or_not_dicts = []
-    for chr, ellipsoid in ellipsoids_for_chromosomes.iteritems():
+    for chr, ellipsoid in train_ellipsoids.iteritems():
         list_of_amplicons_to_test = norm_cov_ampl_names[chr]
         for amplicon, element in ellipsoid.iteritems():
             if amplicon in list_of_amplicons_to_test:
