@@ -321,12 +321,10 @@ def main():
     # Create a list of amplicons with low coverage and a list of all amplicons.
     low_cov_ampl_names = set(test_low_cov_ampl_names + train_low_cov_ampl_names)
     norm_cov_ampl_names = defaultdict(list)
-    ampl_names = defaultdict(list)
     for chrom in panel_of_amplicons:
         for amplicon in panel_of_amplicons[chrom]:
             if amplicon.ID not in low_cov_ampl_names:
-                norm_cov_ampl_names[chrom].append(amplicon.ID)
-            ampl_names[chrom].append(amplicon.ID)
+                norm_cov_ampl_names[chrom].append(amplicon.ID)s
 
     # Normalize amplicons' coverages by total chromosome coverage.
     normalize_by_chromosome_coverage(norm_cov_ampl_names, test_log_ampl_cov_NoLowCov_dict)
