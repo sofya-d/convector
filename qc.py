@@ -230,40 +230,44 @@ def get_qc_failed_samples_lst(sample_is_normal_dict_lst, samples_to_qc):
 
 # output_result_file() ======================================================================================================================================================================
 
-def output_result_file(test_ampl_cov_dict, train_ampl_cov_dict, qc_negative_list, norm_cov_ampl_names, out_prfx, mode):
+def output_result_file(test_ampl_cov_dict, train_ampl_cov_dict, qc_failed_samples_lst, norm_cov_ampl_names, FilteredCov_filepath, do_merge_test_and_control):
     """
-    :param test_ampl_cov_dict: coverages before normalization
-    :param train_ampl_cov_dict: coverages before normalization
-    :param qc_negative_list: list of samples that did not passed QC
-    :param norm_cov_ampl_names: amplicons from clean samples
-    :param out_prfx: name of task
-    :param mode: merging control and test sample or not
-    :return: output file with coverages and QC report
+     param:        test_ampl_cov_dict: a dictionary of structure {sample: {amplicon: coverage}} for test data
+     param:       train_ampl_cov_dict: a dictionary of structure {sample: {amplicon: coverage}} for control data
+     param:     qc_failed_samples_lst: list of samples that failed QC
+     param:       norm_cov_ampl_names: a dictionary of structure {chromosome: [amplicon]} without low-covered amplicons
+     param:      FilteredCov_filepath: path to output filtered amplicon coverage file
+     param: do_merge_test_and_control: whether to merge test and control data sets
+    return: output file with coverages and QC report
     """
-    ordered_list_of_samples_test = list(sorted(test_ampl_cov_dict.iterkeys()))
-    ordered_list_of_samples_control = list(sorted(train_ampl_cov_dict.iterkeys()))
-    with open("./result/" + out_prfx + "_qc.xls", "wb") as f:
-        top_string = "Gene\tTarget\t"
-        for sample in ordered_list_of_samples_test:
-            if sample not in qc_negative_list:
-                top_string += "Case_" + sample + "\t"
-        if mode == 1:
-            for sample in ordered_list_of_samples_control:
-                top_string += "Control_" + sample + "\t"
-        top_string += '\n'
-        f.write(top_string)
-        for chr, ampls in norm_cov_ampl_names.iteritems():
-            for ampl in ampls:
-                new_result_string = "N/A\t" + ampl + "\t"
-                for sample in ordered_list_of_samples_test:
-                    if sample not in qc_negative_list:
-                        new_result_string += str(test_ampl_cov_dict[sample][ampl]) + "\t"
-                if mode == 1:
-                    for sample in ordered_list_of_samples_control:
-                        new_result_string += str(train_ampl_cov_dict[sample][ampl]) + "\t"
-
-                new_result_string += "\n"
-                f.write(new_result_string)
+    
+    test_samples_lst = list(sorted(test_ampl_cov_dict.iterkeys()))
+    control_samples_lst = list(sorted(train_ampl_cov_dict.iterkeys()))
+    
+    with open(FilteredCov_filepath, "wb") as handle:
+        table_header = "Gene\tTarget\t"
+        for sample in test_samples_lst:
+            if sample not in qc_failed_samples_lst:
+                table_header += "Case_" + sample + "\t"
+        if do_merge_test_and_control:
+            for sample in control_samples_lst:
+                table_header += "Control_" + sample + "\t"
+        table_header += '\n'
+        handle.write(table_header)
+        
+        for chrom, ampl_names_lst in norm_cov_ampl_names.iteritems():
+            for ampl_name in ampl_names_lst:
+                ampl_cov_row = "N/A\t" + ampl_name + "\t"
+                for sample in test_samples_lst:
+                    if sample not in qc_failed_samples_lst:
+                        ampl_cov = test_ampl_cov_dict[sample][ampl_name]
+                        ampl_cov_row += str(ampl_cov) + "\t"
+                if do_merge_test_and_control:
+                    for sample in control_samples_lst:
+                        ampl_cov = train_ampl_cov_dict[sample][ampl_name]
+                        ampl_cov_row += str(ampl_cov) + "\t"
+                ampl_cov_row += "\n"
+                handle.write(ampl_cov_row)
 
 # output_result_file() ======================================================================================================================================================================
 
@@ -363,7 +367,7 @@ def main():
 
     # Get list of samples with irregular chromosomes' coverage.
     samples_to_qc = sorted(list(test_log_ampl_cov_NoLowCov_dict.iterkeys()))
-    qc_negative_list = get_qc_failed_samples_lst(sample_is_normal_dict_lst, samples_to_qc)
+    qc_failed_samples_lst = get_qc_failed_samples_lst(sample_is_normal_dict_lst, samples_to_qc)
 
     # Calculate ARV statistics for "train" (control) and test data sets.
     avrcc = statistics.mean(robust_variances_control_vs_control_lst)
@@ -375,15 +379,16 @@ def main():
     logger.info(" ".join(["ARVc =", str(arvc)]))
     logger.info(" ".join(["ARVt =", str(arvt)]))
     
-    # Set mode.
-    ## Mode is equal to 1 if the control (train) and test samples differ. Otherwise, mode = 0.
-    mode = 0
+    # Decide whether to merge test and control data sets
+    do_merge_test_and_control = False
     if coverage_filepath != ControlCoverage_filepath:
-        mode = 1
+        do_merge_test_and_control = True
     
     # Write amplicons' coverage without filtered out samples.
-    # Add control samples to the table if merging of test and control samples is allowed by mode variable.
-    output_result_file(test_ampl_cov_dict, train_ampl_cov_dict, qc_negative_list, ampl_names, out_prfx, mode)
+    # Add control samples to the table if merging of test and control samples is allowed by do_merge_test_and_control variable.
+    FilteredCov_file = '{}_AmplCov_filtered.tsv'.format(out_prfx)
+    FilteredCov_filepath = os.path.join(out_dirpath, FilteredCov_file)
+    output_result_file(test_ampl_cov_dict, train_ampl_cov_dict, qc_failed_samples_lst, norm_cov_ampl_names, FilteredCov_filepath, do_merge_test_and_control)
 
 # main() ====================================================================================================================================================================================
 
