@@ -310,11 +310,12 @@ def main():
     directory = '/'.join(amplicons_filepath.split('/')[:-1])
     panel_of_amplicons = chimeric_solver.parse_bed_file(amplicons_filepath)
 
-    # Import amplicons' coverage for "train" and "test" sets, gather statistics.
-    ## samples_to_<test/train> is a dictionary with structure: {sample : {amplicon : coverages}}.
-    ## low_covered_ampls_<test/train> is a list with low covered amplicons.
-    ## clean_coverages_of_samples_to_<test/train> contains coverages of samples without low covered amplicons for statistical analysis.
-    ## true_coverages_of_samples_to_<test/train> contains coverages of all samples (for output).
+    # The function parse_file_with_coverages returns:
+    ## ampl_cov_dict is a dictionary with structure {sample: {amplicon: coverage}}
+    ## ampl_cov_NoLowCov_dict is a dictionary with structure {sample: {amplicon: coverage}} without low covered amplicons
+    ## log_ampl_cov_NoLowCov_dict is a dictionary with structure {sample: {amplicon: log(coverage)}}
+    ## low_cov_ampl_names: a list of low covered amplicons names
+    # An amplicon is considered low covered if its average coverage among samples is less than 50.
     test_ampl_cov_dict, test_log_ampl_cov_NoLowCov_dict, test_low_cov_ampl_names = parse_file_with_coverages(coverage_filepath)
     train_ampl_cov_dict, train_log_ampl_cov_NoLowCov_dict, train_low_cov_ampl_names = parse_file_with_coverages(ControlCoverage_filepath)
 
