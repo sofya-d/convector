@@ -319,7 +319,8 @@ def main():
     test_ampl_cov_dict, test_log_ampl_cov_NoLowCov_dict, test_low_cov_ampl_names = parse_file_with_coverages(coverage_filepath)
     train_ampl_cov_dict, train_log_ampl_cov_NoLowCov_dict, train_low_cov_ampl_names = parse_file_with_coverages(ControlCoverage_filepath)
 
-    # Create a list of amplicons with low coverage and a list of all amplicons.
+    # Create a list of amplicons which are low-covered in both train and test data sets.
+    # Create a dictionary of structure {chromosome: [amplicon]} with amplicons which are not low-covered in both train and test data sets.
     low_cov_ampl_names = set(test_low_cov_ampl_names + train_low_cov_ampl_names)
     norm_cov_ampl_names = defaultdict(list)
     for chrom in panel_of_amplicons:
