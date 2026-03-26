@@ -145,8 +145,8 @@ def form_ellipsoid(log_ampl_cov_NoLowCov_dict, ampl_names_lst):
             ampl_cov = ampl_cov_dict[ampl_name]
             ampl_cov_lst.append(ampl_cov)
         # statistics.medianW() and statistics.sn_estimator() are imported from <CONVector directory>/statistics.py.
-        ## statistics.medianW() calculates Hodges-Lehmann estimator (according to Google Gemini).
-        ## statistics.sn_estimator calculates S_n estimator of scale developed by Rousseeuw and Croux (according to Google Gemini).
+        ## statistics.medianW() calculates Hodges-Lehmann estimator. It is like median but more robust.
+        ## statistics.sn_estimator calculates S_n estimator of scale developed by Rousseeuw and Croux. It is like median but more robust.
         ellipsoid[ampl_name] = (statistics.medianW(ampl_cov_lst), statistics.sn_estimator(ampl_cov_lst) ** 2)
     return ellipsoid
 
@@ -333,6 +333,10 @@ def main():
     normalize_by_chromosome_coverage(norm_cov_ampl_names, train_log_ampl_cov_NoLowCov_dict)
 
     # Calculate some statistics based on amplicon's coverages, write into the dictionaries.
+    # A function form_ellipsoid returns:
+    ## ellipsoid: a dictionary of structure {amplicon: (stats_estimator_1, stats_estimator_2)}
+    # stats_estimator_1 is a Hodges-Lehmann estimator calculated by statistics.medianW(). It is like median but more robust.
+    # stats_estimator_2 is a S_n estimator of scale developed by Rousseeuw and Croux. It is calculated by statistics.sn_estimator(). It is like standard deviation but more robust.
     train_ellipsoids = {}
     test_ellipsoids = {}
     for chrom, ampl_names_lst in norm_cov_ampl_names.iteritems():
