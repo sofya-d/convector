@@ -39,23 +39,35 @@ def get_quantiles(mode, CONVector_dirpath):
     return quantiles_dict
 
 
-def get_tmp_del_files(amplicons_filepath, del_quantiles_dict, dup_quantiles_dict, out_prfx, min_corr, mode):
-    """Launch CONVector using predefined parameters, output - files with CNVs
-    (outputId_of_task_before_LDA and outputId_of_task_after_LDA)"""
+def get_tmp_del_files(amplicons_filepath, del_quantiles_dict, dup_quantiles_dict, out_prfx, out_dirpath, min_corr, control_is_clean):
+    """
+    Launch CONVector using predefined parameters, output - files with CNVs
+    (outputId_of_task_before_LDA and outputId_of_task_after_LDA)
+    """
+    amplicon_coverage_file = out_prfx + '_AmplCov_filtered.tsv'
+    amplicon_coverage_filepath = os.path.join(out_dirpath, amplicon_coverage_file)
     num_of_samples = 0
-    with open("./result/" + out_prfx + "_qc.xls") as f:
+    with open(amplicon_coverage_filepath) as f:
         num_of_samples = len(f.readline().split()) - 2
-    x = str(del_quantiles_dict[num_of_samples])
-    y = str(dup_quantiles_dict[num_of_samples])
-    string_to_cmd = "javac ./deletionsAnalysis/Main.java"
-    os.system(string_to_cmd)
-    string_to_cmd = ("").join(["java  deletionsAnalysis/Main ", " -d ./result/", out_prfx,
-                               "_qc.xls", " -b ", amplicons_filepath, " -f output", out_prfx, " -mc ", min_corr, " -mnm 5 -nne 4 -nod 4 -lb -",
-                               x, " -ub ", y , " -dist 1000000 -lcb 25000 -lca 50"])
-    if mode:
-        string_to_cmd += " -c"
-    logger.warn(string_to_cmd)
-    os.system(string_to_cmd)
+    #
+    lower_bound = '-' + str(del_quantiles_dict[num_of_samples])
+    upper_bound = str(dup_quantiles_dict[num_of_samples])
+    #
+    compile_java_command = 'javac ./deletionsAnalysis/Main.java'
+    os.system(compile_java_command)
+    #
+    call_variants_command = 'java  deletionsAnalysis/Main  -d {} -b {} -f {} -mc {} -lb {} -ub {} -mnm 5 -nne 4 -nod 4 -dist 1000000 -lcb 25000 -lca 50'.format(amplicon_coverage_filepath, amplicons_filepath, out_prfx, min_corr, lower_bound, upper_bound)
+    if control_is_clean:
+        call_variants_command += ' -c'
+    # Options in deletionsAnalysis/OptionsParse.java:
+    ## -b    Path to amplicon coordinates table.
+    ## -d    Path to amplicon covarage table.
+    ## -f    Output file prefix.
+    ## -lb   Lower bound.
+    ## -ub   Upper bound.
+    logger.warn(call_variants_command)
+    os.system(call_variants_command)
+
 
 def get_results(out_prfx, out_dirpath):
     """Launch finalizer and creates a report about CNVs, .xls file with name
@@ -64,6 +76,7 @@ def get_results(out_prfx, out_dirpath):
     string_to_get_final_results_supervised = ("").join(["python2 finalizer.py -i output", out_prfx, "_after_LDA.xls -o result_after_LDA_", out_prfx, ".xls"])
     os.system(string_to_get_final_results_unsupervised)
     os.system(string_to_get_final_results_supervised)
+
 
 def main():
     # Create arguments parser
@@ -162,7 +175,7 @@ def main():
                                                                                                                      ControlCoverage_file, out_prfx, out_dirpath, amplicons_frac)
     os.system(qc_command)
 
-    get_tmp_del_files(amplicons_filepath, del_quantiles_dict, dup_quantiles_dict, output_file_name, min_corr, control_is_clean)
+    get_tmp_del_files(amplicons_filepath, del_quantiles_dict, dup_quantiles_dict, out_prfx, out_dirpath, min_corr, control_is_clean)
     get_results(output_file_name, out_dirpath)
     string_to_cmd = (" ").join(["./visualisation.R", amplicons_filepath, "./visualisation", out_prfx])
     os.system(string_to_cmd)
