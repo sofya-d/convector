@@ -7,6 +7,8 @@ import java.io.Serializable;
 import java.util.*;
 import java.io.File;
 import java.util.logging.*;
+import java.util.logging.FileHandler;
+import java.util.logging.SimpleFormatter;
 /**
  * Created by german on 11.07.14.
  */
@@ -581,6 +583,23 @@ public class Main {
             } catch (IOException e) {
                 System.err.println("Could not setup logger configuration: " + e.toString());
             }
+
+            String logOutDir = ".";
+            String logFilename = "output";
+            for (int i = 0; i < args.length; i++) {
+                if (args[i].equals("-o") && i + 1 < args.length) logOutDir = args[i + 1];
+                if (args[i].equals("-f") && i + 1 < args.length) logFilename = args[i + 1];
+            }
+            try {
+                java.nio.file.Files.createDirectories(java.nio.file.Paths.get(logOutDir));
+                FileHandler fh = new FileHandler(logOutDir + File.separator + logFilename + "_log.%g.%u.txt");
+                fh.setFormatter(new SimpleFormatter());
+                fh.setLevel(Level.ALL);
+                Logger.getLogger("").addHandler(fh);
+            } catch (IOException e) {
+                System.err.println("Could not create log file handler: " + e.toString());
+            }
+
             Solver solve = new Solver(args);
         } catch (Exception e) {
             System.err.println("\nSmth wrong with the tool! All we can do is to output a stack trace.");
