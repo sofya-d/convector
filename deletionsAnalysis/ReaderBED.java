@@ -33,7 +33,7 @@ public class ReaderBED {
         try {
             BufferedReader br = new BufferedReader(new FileReader(bedFileName));
             for (String line; (line = br.readLine()) != null; ) {
-                if (line.startsWith("chr") || line.startsWith("clean") || line.startsWith("del")) {
+                if (!line.startsWith("track") && !line.trim().isEmpty()) {
                     String[] tmpListForMap = line.split("\\t");
                     ArrayList values = new ArrayList<String>();
                     for (int i = 0; i != tmpListForMap.length; i++)
