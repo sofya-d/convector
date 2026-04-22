@@ -182,7 +182,17 @@ class Solver {
         }
 
 
-        String filename = cmd.getOptionValue("f");
+        String outDir = ".";
+        if (cmd.hasOption("o")) {
+            outDir = cmd.getOptionValue("o");
+            try {
+                java.nio.file.Files.createDirectories(java.nio.file.Paths.get(outDir));
+            } catch (IOException e) {
+                log.log(Level.SEVERE, "Could not create output directory: " + outDir + "\n" + e.getMessage());
+                System.exit(1);
+            }
+        }
+        String filename = outDir + File.separator + cmd.getOptionValue("f");
         double minCorThreshold = 0.75;
         try {
             minCorThreshold = Double.parseDouble(cmd.getOptionValue("mc"));
@@ -477,8 +487,8 @@ class Solver {
             int maximum_cycles_of_algorithm = 10;
             LDA lda = null;
 
-            createDirectoryIfNeeded("./tmpResultsCNV");
-            File file = new File("./tmpResultsCNV");
+            createDirectoryIfNeeded(outDir + File.separator + "tmpResultsCNV");
+            File file = new File(outDir + File.separator + "tmpResultsCNV");
             String[] myFiles;
             myFiles = file.list();
             for (int k = 0; k < myFiles.length; k++) {
@@ -499,7 +509,7 @@ class Solver {
                     lda = new LDA(sam, dataAboutAmplicons, samplesNames,
                             dirtySamples, nonEffecitveAmpls, amplCorrelationPriorityForLDA, minCorThreshold,
                             minDistanceBetween, maxNumOfModels, numberOfTestsPerSample, predictedMedians, numberOfTests);
-                    lda.outRes("./tmpResultsCNV/" + filename + "_step_" + i, versionAndParams, samplesNames, readerBed, cmd.getOptionValue("d"));
+                    lda.outRes(outDir + File.separator + "tmpResultsCNV" + File.separator + cmd.getOptionValue("f") + "_step_" + i, versionAndParams, samplesNames, readerBed, cmd.getOptionValue("d"));
                     dirtySamples = lda.getNewDirtySamples();
                     if (lda.numberOfDirtySamplesChanged == false || i == maximum_cycles_of_algorithm) {
                         lda.outRes(filename, versionAndParams, samplesNames, readerBed, cmd.getOptionValue("d"));
@@ -533,11 +543,11 @@ class Solver {
 
                     dirtySamples = lda.getNewDirtySamples();
 
-                    lda.outRes("./tmpResultsCNV/" + filename + "_" + dirtySamples.size() + "_step_" + i, versionAndParams, samplesNames, readerBed, cmd.getOptionValue("d"));
+                    lda.outRes(outDir + File.separator + "tmpResultsCNV" + File.separator + cmd.getOptionValue("f") + "_" + dirtySamples.size() + "_step_" + i, versionAndParams, samplesNames, readerBed, cmd.getOptionValue("d"));
 
                     if (lda.numberOfDirtySamplesChanged == false) {
                         theBestLDA = (LDA)ObjectCloner.deepCopy(lda);
-                        theBestLDA.printDistances("distance.xls");
+                        theBestLDA.printDistances(outDir + File.separator + "distance.xls");
                         log.log(Level.INFO, "The analysis is completed");
                         break;
                     }

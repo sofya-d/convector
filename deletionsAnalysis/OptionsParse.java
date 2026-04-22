@@ -88,6 +88,12 @@ public class OptionsParse {
                 .withArgName("f")
                 .create("f"));
 
+        option.addOption(OptionBuilder.withLongOpt("o")
+                .withDescription("output directory (will be created if it does not exist)")
+                .hasArg()
+                .withArgName("o")
+                .create("o"));
+
         option.addOption(OptionBuilder.withLongOpt("h")
                 .withDescription("help message")
                 .hasArg()
