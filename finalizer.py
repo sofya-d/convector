@@ -191,16 +191,11 @@ def main():
                         help=".xls file with results of CNVdetector",
                         required=True)
     parser.add_argument('--output','-o',action="store", dest = "output_file",
-                        help="File to output results",
+                        help="Path to output file.",
                         required=True)
-
-    parser.add_argument('--folder','-f',action="store", dest = "output_folder",
-                        help="Folder to output results",
-                        required=False, default=None)
 
     args = parser.parse_args()
 
-    output_folder = args.output_folder
     generate_final_output_del(args.input_file, args.output_file)
     generate_final_output_dup(args.input_file, args.output_file)
 
